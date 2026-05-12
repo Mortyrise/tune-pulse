@@ -73,7 +73,9 @@ export class MetronomeEngine {
   }
 
   start() {
-    if (this.timerId !== null) return
+    if (this.timerId !== null) {
+      return
+    }
     this.nextNoteTime = this.ctx.currentTime + 0.05
     this.beatIndex = 0
     this.subdivIndex = 0
@@ -86,7 +88,9 @@ export class MetronomeEngine {
       clearInterval(this.timerId)
       this.timerId = null
     }
-    for (const id of this.scheduledTimeouts) clearTimeout(id)
+    for (const id of this.scheduledTimeouts) {
+      clearTimeout(id)
+    }
     this.scheduledTimeouts = []
   }
 

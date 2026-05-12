@@ -15,14 +15,23 @@ export async function resumeAudioContext(): Promise<void> {
   }
 }
 
-export async function requestMicrophone(): Promise<MediaStream> {
-  return navigator.mediaDevices.getUserMedia({
+export function requestMicrophone(): Promise<MediaStream> {
+  // IMPORTANT: this function must be called *synchronously* from a user
+  // gesture handler (e.g. onClick), without any await in front of it. iOS
+  // Safari otherwise loses the transient activation and rejects the prompt.
+  const preferred: MediaStreamConstraints = {
     audio: {
       echoCancellation: false,
       noiseSuppression: false,
       autoGainControl: false,
-      channelCount: 1,
     },
     video: false,
+  }
+  return navigator.mediaDevices.getUserMedia(preferred).catch((err) => {
+    // Some devices reject when these processing flags are forced off.
+    if (err instanceof DOMException && err.name === 'OverconstrainedError') {
+      return navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+    }
+    throw err
   })
 }

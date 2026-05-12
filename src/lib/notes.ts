@@ -18,7 +18,9 @@ export type DetectedNote = {
 }
 
 export function frequencyToNote(frequency: number, referenceA4 = REFERENCE_PITCH): DetectedNote | null {
-  if (!Number.isFinite(frequency) || frequency <= 0) return null
+  if (!Number.isFinite(frequency) || frequency <= 0) {
+    return null
+  }
   const midiFloat = 12 * Math.log2(frequency / referenceA4) + A4_MIDI
   const midi = Math.round(midiFloat)
   const cents = (midiFloat - midi) * 100

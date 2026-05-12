@@ -48,8 +48,11 @@ export function useMetronome() {
   }, [])
 
   const toggle = useCallback(() => {
-    if (isRunning) stop()
-    else void start()
+    if (isRunning) {
+      stop()
+    } else {
+      void start()
+    }
   }, [isRunning, start, stop])
 
   const setBpm = useCallback((bpm: number) => {

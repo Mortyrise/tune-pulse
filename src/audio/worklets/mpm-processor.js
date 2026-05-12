@@ -3,7 +3,7 @@
 // Runs in AudioWorklet global scope: `sampleRate` and `AudioWorkletProcessor`
 // are provided. No imports allowed here.
 
-const BUFFER_SIZE = 2048
+const BUFFER_SIZE = 4096
 const HOP_SIZE = 512
 const MIN_FREQ = 30
 const MAX_FREQ = 5000
