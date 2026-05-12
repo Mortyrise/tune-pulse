@@ -1,23 +1,53 @@
-// Pitch detection — Phase 2 will implement MPM (McLeod Pitch Method) running
-// inside an AudioWorklet for low-latency, sample-accurate analysis.
-//
-// Planned flow:
-//   1. Mic stream -> MediaStreamAudioSourceNode
-//   2. -> AudioWorkletNode (mpm-processor.js) — accumulates 2048-sample frames
-//   3. Worklet runs NSDF (Normalized Square Difference Function) + peak picking
-//   4. Posts { frequency, clarity } back via port.postMessage
-//   5. Main thread maps frequency -> note + cents via lib/notes.ts
-//
-// Onset detection: gate output by RMS threshold so silence/noise doesn't spam
-// the UI with garbage detections.
+import mpmWorkletUrl from './worklets/mpm-processor.js?url'
 
-export type PitchResult = {
+export type PitchSample = {
   frequency: number
-  clarity: number // 0..1, confidence
+  clarity: number
   rms: number
 }
 
-export const PITCH_MIN_HZ = 30 // low B on a 5-string bass
-export const PITCH_MAX_HZ = 5000 // well above any pitched instrument fundamental
-export const CLARITY_THRESHOLD = 0.85
-export const RMS_GATE = 0.01
+export type PitchDetectorHandle = {
+  stop: () => void
+}
+
+let workletLoaded: WeakSet<AudioContext> = new WeakSet()
+
+export async function startPitchDetection(
+  audioContext: AudioContext,
+  mediaStream: MediaStream,
+  onSample: (sample: PitchSample) => void,
+): Promise<PitchDetectorHandle> {
+  if (!workletLoaded.has(audioContext)) {
+    await audioContext.audioWorklet.addModule(mpmWorkletUrl)
+    workletLoaded.add(audioContext)
+  }
+
+  const source = audioContext.createMediaStreamSource(mediaStream)
+  const node = new AudioWorkletNode(audioContext, 'mpm-processor')
+
+  // Route through a muted gain so the graph is "live" without playing input back.
+  const mute = audioContext.createGain()
+  mute.gain.value = 0
+
+  node.port.onmessage = (event) => {
+    onSample(event.data as PitchSample)
+  }
+
+  source.connect(node)
+  node.connect(mute)
+  mute.connect(audioContext.destination)
+
+  return {
+    stop: () => {
+      try {
+        node.port.onmessage = null
+        source.disconnect()
+        node.disconnect()
+        mute.disconnect()
+      } catch {
+        // disconnect on already-disconnected nodes throws — ignore.
+      }
+      mediaStream.getTracks().forEach((t) => t.stop())
+    },
+  }
+}
