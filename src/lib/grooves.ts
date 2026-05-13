@@ -1,0 +1,148 @@
+import type { Denominator, Subdivision } from '../audio/metronomeScheduler'
+
+export type Groove = {
+  id: string
+  name: string
+  bpm: number
+  numerator: number
+  denominator: Denominator
+  accents: number[]
+  subdivisions: Subdivision[]
+  hint: string
+  tag: string
+}
+
+export const GROOVES_LIBRARY: Groove[] = [
+  {
+    id: 'ballad',
+    name: 'Ballad',
+    bpm: 72,
+    numerator: 4,
+    denominator: 4,
+    accents: [1],
+    subdivisions: [1, 1, 1, 1],
+    hint: 'Slow 4 — give it room.',
+    tag: 'feel',
+  },
+  {
+    id: 'backbeat',
+    name: 'Backbeat',
+    bpm: 96,
+    numerator: 4,
+    denominator: 4,
+    accents: [2, 4],
+    subdivisions: [1, 2, 1, 2],
+    hint: 'Snare on 2 & 4. Hats in eighths.',
+    tag: 'pop',
+  },
+  {
+    id: 'halftime',
+    name: 'Half-time',
+    bpm: 88,
+    numerator: 4,
+    denominator: 4,
+    accents: [3],
+    subdivisions: [2, 2, 2, 2],
+    hint: 'Big snare on 3.',
+    tag: 'hip-hop',
+  },
+  {
+    id: 'pop',
+    name: 'Four-on-floor',
+    bpm: 120,
+    numerator: 4,
+    denominator: 4,
+    accents: [1, 2, 3, 4],
+    subdivisions: [2, 2, 2, 2],
+    hint: 'Disco/house pulse.',
+    tag: 'dance',
+  },
+  {
+    id: 'waltz',
+    name: 'Waltz',
+    bpm: 132,
+    numerator: 3,
+    denominator: 4,
+    accents: [1],
+    subdivisions: [1, 1, 1],
+    hint: 'Strong 1, lift on 2-3.',
+    tag: 'classical',
+  },
+  {
+    id: 'shuffle',
+    name: 'Shuffle',
+    bpm: 100,
+    numerator: 4,
+    denominator: 4,
+    accents: [1, 3],
+    subdivisions: [3, 3, 3, 3],
+    hint: 'Triplet feel — swing it.',
+    tag: 'blues',
+  },
+  {
+    id: 'buleria',
+    name: 'Bulería',
+    bpm: 220,
+    numerator: 12,
+    denominator: 8,
+    accents: [1, 4, 7, 9, 11],
+    subdivisions: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    hint: 'Compound flamenco cycle.',
+    tag: 'flamenco',
+  },
+  {
+    id: 'odd-5',
+    name: '5/4 odd',
+    bpm: 100,
+    numerator: 5,
+    denominator: 4,
+    accents: [1, 4],
+    subdivisions: [2, 2, 2, 2, 2],
+    hint: 'Take Five vibe.',
+    tag: 'jazz',
+  },
+  {
+    id: 'odd-7',
+    name: '7/8 odd',
+    bpm: 130,
+    numerator: 7,
+    denominator: 8,
+    accents: [1, 4, 6],
+    subdivisions: [1, 1, 1, 1, 1, 1, 1],
+    hint: 'Balkan / prog 7.',
+    tag: 'odd',
+  },
+  {
+    id: 'sixteenths',
+    name: 'Sixteenth grid',
+    bpm: 60,
+    numerator: 4,
+    denominator: 4,
+    accents: [1],
+    subdivisions: [4, 4, 4, 4],
+    hint: 'Slow, clean it up.',
+    tag: 'practice',
+  },
+  {
+    id: 'samba',
+    name: 'Samba',
+    bpm: 100,
+    numerator: 2,
+    denominator: 4,
+    accents: [1],
+    subdivisions: [4, 4],
+    hint: 'Brazilian 2 with sixteenths.',
+    tag: 'latin',
+  },
+  {
+    id: 'dembow',
+    name: 'Dembow',
+    bpm: 95,
+    numerator: 4,
+    denominator: 4,
+    accents: [1, 2, 3, 4],
+    subdivisions: [2, 2, 2, 2],
+    hint: 'Boom-ch-boom-chick.',
+    tag: 'latin',
+  },
+]
