@@ -4,6 +4,7 @@ import { MetronomeScreen } from './screens/MetronomeScreen'
 import { SettingsScreen } from './screens/SettingsScreen'
 import { TunerScreen } from './screens/TunerScreen'
 import { useTheme } from './hooks/useTheme'
+import { TunerSettingsProvider } from './hooks/useTunerSettings'
 
 function AppShell() {
   useTheme() // initialize theme on mount
@@ -29,7 +30,9 @@ function AppShell() {
 export default function App() {
   return (
     <BrowserRouter>
-      <AppShell />
+      <TunerSettingsProvider>
+        <AppShell />
+      </TunerSettingsProvider>
     </BrowserRouter>
   )
 }

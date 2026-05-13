@@ -1,26 +1,24 @@
 import { useEffect, useRef, useState } from 'react'
 import { Mic, MicOff, RefreshCw } from 'lucide-react'
 import { useTuner, type TunerError } from '../hooks/useTuner'
+import { useTunerSettings } from '../hooks/useTunerSettings'
 import { formatNoteName, frequencyToNote } from '../lib/notes'
 import type { PitchSample } from '../audio/pitchDetector'
 
-const IN_TUNE_CENTS = 5
-const NEAR_CENTS = 15
 const HOLD_MS = 1500
+const NEAR_TOLERANCE_MULTIPLIER = 3
 
-function centsColor(cents: number): string {
+function centsColor(cents: number, inTune: number, near: number): string {
   const abs = Math.abs(cents)
-  if (abs <= IN_TUNE_CENTS) {
+  if (abs <= inTune) {
     return 'var(--color-accent)'
   }
-  if (abs <= NEAR_CENTS) {
+  if (abs <= near) {
     return 'var(--color-warn)'
   }
   return 'var(--color-bad)'
 }
 
-/** Keep the last valid sample on screen for HOLD_MS so the display doesn't
- *  flicker between detection frames where clarity briefly dips. */
 function useStickySample(sample: PitchSample | null): PitchSample | null {
   const [display, setDisplay] = useState<PitchSample | null>(null)
   const timerRef = useRef<number | null>(null)
@@ -51,7 +49,11 @@ function useStickySample(sample: PitchSample | null): PitchSample | null {
 
 export function TunerScreen() {
   const { state, start, stop } = useTuner()
+  const { settings } = useTunerSettings()
   const stickySample = useStickySample(state.sample)
+
+  const inTuneCents = settings.inTuneCents
+  const nearCents = inTuneCents * NEAR_TOLERANCE_MULTIPLIER
 
   if (state.status === 'error' && state.error) {
     return <ErrorView error={state.error} onRetry={() => void start()} />
@@ -76,7 +78,7 @@ export function TunerScreen() {
     )
   }
 
-  const note = stickySample ? frequencyToNote(stickySample.frequency) : null
+  const note = stickySample ? frequencyToNote(stickySample.frequency, settings.referenceA4) : null
   const isWaiting = state.status === 'starting' || !note
 
   return (
@@ -87,7 +89,7 @@ export function TunerScreen() {
         </p>
         <div className="mt-4 flex items-baseline justify-center gap-2 font-mono tabular-nums">
           <span className="text-8xl font-light">
-            {note ? formatNoteName(note.noteIndex) : '—'}
+            {note ? formatNoteName(note.noteIndex, settings.notation, settings.accidental) : '—'}
           </span>
           {note && (
             <span className="text-2xl text-[color:var(--color-muted)]">{note.octave}</span>
@@ -96,7 +98,7 @@ export function TunerScreen() {
         {note && (
           <p
             className="mt-2 font-mono text-2xl tabular-nums"
-            style={{ color: centsColor(note.cents) }}
+            style={{ color: centsColor(note.cents, inTuneCents, nearCents) }}
           >
             {note.cents >= 0 ? '+' : ''}
             {note.cents.toFixed(1)}¢
@@ -105,11 +107,17 @@ export function TunerScreen() {
         {stickySample && stickySample.frequency > 0 && (
           <p className="mt-1 text-xs text-[color:var(--color-muted)]">
             {stickySample.frequency.toFixed(2)} Hz
+            {settings.referenceA4 !== 440 && ` · A4 ${settings.referenceA4} Hz`}
           </p>
         )}
       </div>
 
-      <CentsMeter cents={note?.cents ?? 0} active={!!note} />
+      <CentsMeter
+        cents={note?.cents ?? 0}
+        active={!!note}
+        inTuneCents={inTuneCents}
+        nearCents={nearCents}
+      />
 
       <button
         type="button"
@@ -181,12 +189,22 @@ function centsToPercent(cents: number): number {
   return ((clamped + METER_RANGE_CENTS) / (2 * METER_RANGE_CENTS)) * 100
 }
 
-function CentsMeter({ cents, active }: { cents: number; active: boolean }) {
+function CentsMeter({
+  cents,
+  active,
+  inTuneCents,
+  nearCents,
+}: {
+  cents: number
+  active: boolean
+  inTuneCents: number
+  nearCents: number
+}) {
   const indicatorPercent = centsToPercent(cents)
-  const warnLeft = centsToPercent(-NEAR_CENTS)
-  const warnRight = 100 - centsToPercent(NEAR_CENTS)
-  const tuneLeft = centsToPercent(-IN_TUNE_CENTS)
-  const tuneRight = 100 - centsToPercent(IN_TUNE_CENTS)
+  const warnLeft = centsToPercent(-nearCents)
+  const warnRight = 100 - centsToPercent(nearCents)
+  const tuneLeft = centsToPercent(-inTuneCents)
+  const tuneRight = 100 - centsToPercent(inTuneCents)
 
   return (
     <div className="w-full max-w-sm">

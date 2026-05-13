@@ -1,0 +1,119 @@
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
+import type { Accidental, Notation } from '../lib/notes'
+
+export type InTuneTolerance = 3 | 5 | 10
+
+export type TunerSettings = {
+  notation: Notation
+  accidental: Accidental
+  referenceA4: number
+  inTuneCents: InTuneTolerance
+}
+
+export const TOLERANCE_OPTIONS: InTuneTolerance[] = [3, 5, 10]
+export const MIN_REFERENCE_A4 = 400
+export const MAX_REFERENCE_A4 = 480
+
+export const DEFAULT_TUNER_SETTINGS: TunerSettings = {
+  notation: 'english',
+  accidental: 'sharp',
+  referenceA4: 440,
+  inTuneCents: 5,
+}
+
+const STORAGE_KEY = 'tunepulse:tuner-settings'
+
+function isValidNotation(value: unknown): value is Notation {
+  return value === 'english' || value === 'latin'
+}
+
+function isValidAccidental(value: unknown): value is Accidental {
+  return value === 'sharp' || value === 'flat'
+}
+
+function isValidTolerance(value: unknown): value is InTuneTolerance {
+  return value === 3 || value === 5 || value === 10
+}
+
+function clampReferenceA4(value: number): number {
+  return Math.max(MIN_REFERENCE_A4, Math.min(MAX_REFERENCE_A4, Math.round(value)))
+}
+
+function loadSettings(): TunerSettings {
+  if (typeof window === 'undefined') {
+    return DEFAULT_TUNER_SETTINGS
+  }
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY)
+    if (!raw) {
+      return DEFAULT_TUNER_SETTINGS
+    }
+    const parsed = JSON.parse(raw) as Partial<TunerSettings>
+    return {
+      notation: isValidNotation(parsed.notation) ? parsed.notation : DEFAULT_TUNER_SETTINGS.notation,
+      accidental: isValidAccidental(parsed.accidental)
+        ? parsed.accidental
+        : DEFAULT_TUNER_SETTINGS.accidental,
+      referenceA4:
+        typeof parsed.referenceA4 === 'number' && Number.isFinite(parsed.referenceA4)
+          ? clampReferenceA4(parsed.referenceA4)
+          : DEFAULT_TUNER_SETTINGS.referenceA4,
+      inTuneCents: isValidTolerance(parsed.inTuneCents)
+        ? parsed.inTuneCents
+        : DEFAULT_TUNER_SETTINGS.inTuneCents,
+    }
+  } catch {
+    return DEFAULT_TUNER_SETTINGS
+  }
+}
+
+type TunerSettingsContextValue = {
+  settings: TunerSettings
+  updateSettings: (partial: Partial<TunerSettings>) => void
+  resetSettings: () => void
+}
+
+const TunerSettingsContext = createContext<TunerSettingsContextValue | null>(null)
+
+export function TunerSettingsProvider({ children }: { children: ReactNode }) {
+  const [settings, setSettings] = useState<TunerSettings>(loadSettings)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(settings))
+    } catch {
+      // storage full or disabled — silently ignore.
+    }
+  }, [settings])
+
+  const updateSettings = useCallback((partial: Partial<TunerSettings>) => {
+    setSettings((current) => {
+      const next: TunerSettings = { ...current, ...partial }
+      if (partial.referenceA4 !== undefined) {
+        next.referenceA4 = clampReferenceA4(partial.referenceA4)
+      }
+      return next
+    })
+  }, [])
+
+  const resetSettings = useCallback(() => {
+    setSettings(DEFAULT_TUNER_SETTINGS)
+  }, [])
+
+  return (
+    <TunerSettingsContext.Provider value={{ settings, updateSettings, resetSettings }}>
+      {children}
+    </TunerSettingsContext.Provider>
+  )
+}
+
+export function useTunerSettings(): TunerSettingsContextValue {
+  const ctx = useContext(TunerSettingsContext)
+  if (!ctx) {
+    throw new Error('useTunerSettings must be used inside TunerSettingsProvider')
+  }
+  return ctx
+}
