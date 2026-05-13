@@ -2,6 +2,7 @@ export const SCHEDULE_INTERVAL_MS = 25
 export const LOOKAHEAD_MS = 100
 
 export type Subdivision = 1 | 2 | 3 | 4
+export type CountInBars = 0 | 1 | 2
 
 export type BeatConfig = {
   /** Which beats are accented (1-indexed). [1] = downbeat only. */
@@ -10,12 +11,18 @@ export type BeatConfig = {
   subdivisions: Subdivision[]
 }
 
+export type Denominator = 2 | 4 | 8 | 16
+
 export type MetronomeConfig = {
   bpm: number
   numerator: number
-  denominator: number
+  denominator: Denominator
   beats: BeatConfig
+  countInBars: CountInBars
+  hapticMode: boolean
 }
+
+export type BeatPhase = 'count-in' | 'pattern'
 
 export type BeatEvent = {
   time: number
@@ -23,6 +30,8 @@ export type BeatEvent = {
   subdivision: number
   isAccent: boolean
   isDownbeat: boolean
+  phase: BeatPhase
+  barIndex: number
 }
 
 export const DEFAULT_METRONOME: MetronomeConfig = {
@@ -33,7 +42,14 @@ export const DEFAULT_METRONOME: MetronomeConfig = {
     accents: [1],
     subdivisions: [1, 1, 1, 1],
   },
+  countInBars: 0,
+  hapticMode: false,
 }
+
+export const MIN_NUMERATOR = 1
+export const MAX_NUMERATOR = 12
+export const DENOMINATOR_OPTIONS: Denominator[] = [2, 4, 8, 16]
+export const SUBDIVISION_OPTIONS: Subdivision[] = [1, 2, 3, 4]
 
 type ClickStyle = {
   frequency: number
@@ -44,6 +60,7 @@ type ClickStyle = {
 const ACCENT_CLICK: ClickStyle = { frequency: 1500, gain: 0.9, duration: 0.05 }
 const DOWNBEAT_CLICK: ClickStyle = { frequency: 1000, gain: 0.6, duration: 0.04 }
 const SUBDIV_CLICK: ClickStyle = { frequency: 800, gain: 0.3, duration: 0.03 }
+const COUNT_IN_CLICK: ClickStyle = { frequency: 1200, gain: 0.7, duration: 0.04 }
 
 export class MetronomeEngine {
   private ctx: AudioContext
@@ -51,6 +68,9 @@ export class MetronomeEngine {
   private nextNoteTime = 0
   private beatIndex = 0
   private subdivIndex = 0
+  private barIndex = 0
+  /** Snapshot of countInBars taken at start(); changes mid-run only apply on next start. */
+  private countInBarsActive: CountInBars = 0
   private timerId: number | null = null
   private onBeat: ((evt: BeatEvent) => void) | null = null
   private scheduledTimeouts: number[] = []
@@ -79,6 +99,8 @@ export class MetronomeEngine {
     this.nextNoteTime = this.ctx.currentTime + 0.05
     this.beatIndex = 0
     this.subdivIndex = 0
+    this.barIndex = 0
+    this.countInBarsActive = this.config.countInBars
     this.tick()
     this.timerId = window.setInterval(() => this.tick(), SCHEDULE_INTERVAL_MS)
   }
@@ -94,6 +116,10 @@ export class MetronomeEngine {
     this.scheduledTimeouts = []
   }
 
+  private isInCountIn(): boolean {
+    return this.barIndex < this.countInBarsActive
+  }
+
   private tick() {
     const horizon = this.ctx.currentTime + LOOKAHEAD_MS / 1000
     while (this.nextNoteTime < horizon) {
@@ -106,28 +132,48 @@ export class MetronomeEngine {
     const beat = this.beatIndex + 1
     const subdiv = this.subdivIndex
     const isDownbeat = subdiv === 0
-    const isAccent = isDownbeat && this.config.beats.accents.includes(beat)
+    const inCountIn = this.isInCountIn()
+    const isAccent = !inCountIn && isDownbeat && this.config.beats.accents.includes(beat)
 
-    const style = isAccent ? ACCENT_CLICK : isDownbeat ? DOWNBEAT_CLICK : SUBDIV_CLICK
+    let style: ClickStyle
+    if (inCountIn) {
+      style = COUNT_IN_CLICK
+    } else if (isAccent) {
+      style = ACCENT_CLICK
+    } else if (isDownbeat) {
+      style = DOWNBEAT_CLICK
+    } else {
+      style = SUBDIV_CLICK
+    }
 
-    const osc = this.ctx.createOscillator()
-    const env = this.ctx.createGain()
-    osc.type = 'sine'
-    osc.frequency.value = style.frequency
-    env.gain.value = 0
+    if (!this.config.hapticMode) {
+      const osc = this.ctx.createOscillator()
+      const env = this.ctx.createGain()
+      osc.type = 'sine'
+      osc.frequency.value = style.frequency
+      env.gain.value = 0
 
-    osc.connect(env)
-    env.connect(this.ctx.destination)
+      osc.connect(env)
+      env.connect(this.ctx.destination)
 
-    env.gain.setValueAtTime(0, time)
-    env.gain.linearRampToValueAtTime(style.gain, time + 0.001)
-    env.gain.exponentialRampToValueAtTime(0.0001, time + style.duration)
+      env.gain.setValueAtTime(0, time)
+      env.gain.linearRampToValueAtTime(style.gain, time + 0.001)
+      env.gain.exponentialRampToValueAtTime(0.0001, time + style.duration)
 
-    osc.start(time)
-    osc.stop(time + style.duration + 0.01)
+      osc.start(time)
+      osc.stop(time + style.duration + 0.01)
+    }
 
     if (this.onBeat) {
-      const evt: BeatEvent = { time, beat, subdivision: subdiv, isAccent, isDownbeat }
+      const evt: BeatEvent = {
+        time,
+        beat,
+        subdivision: subdiv,
+        isAccent,
+        isDownbeat,
+        phase: inCountIn ? 'count-in' : 'pattern',
+        barIndex: this.barIndex,
+      }
       const delayMs = Math.max(0, (time - this.ctx.currentTime) * 1000)
       const id = window.setTimeout(() => {
         this.scheduledTimeouts = this.scheduledTimeouts.filter((x) => x !== id)
@@ -138,14 +184,19 @@ export class MetronomeEngine {
   }
 
   private advance() {
-    const subdivCount = this.config.beats.subdivisions[this.beatIndex] ?? 1
+    const inCountIn = this.isInCountIn()
+    const subdivCount = inCountIn ? 1 : (this.config.beats.subdivisions[this.beatIndex] ?? 1)
     const stepDuration = 60 / this.config.bpm / subdivCount
     this.nextNoteTime += stepDuration
 
     this.subdivIndex++
     if (this.subdivIndex >= subdivCount) {
       this.subdivIndex = 0
-      this.beatIndex = (this.beatIndex + 1) % this.config.numerator
+      this.beatIndex++
+      if (this.beatIndex >= this.config.numerator) {
+        this.beatIndex = 0
+        this.barIndex++
+      }
     }
   }
 }
