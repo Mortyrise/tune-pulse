@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>pulseGroove — Tuner + Metronome</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600&family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="src/styles.css" />
+<link rel="stylesheet" href="src/desktop/desktop.css" />
+<style>
+  html, body { background: #1f1d1a; }
+  body { margin: 0; min-height: 100vh; color: #ddd; font-family: 'Inter', sans-serif; overflow: auto; }
+  .stage {
+    min-height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+    padding: 32px 16px;
+  }
+  .stage-meta {
+    position: fixed; top: 14px; left: 16px;
+    font-family: 'JetBrains Mono', monospace;
+    color: rgba(255,255,255,0.35);
+    font-size: 10.5px; letter-spacing: 0.16em;
+    text-transform: uppercase;
+    z-index: 10;
+    pointer-events: none;
+  }
+  @keyframes pg-ring-expand {
+    0%   { transform: scale(0.42); opacity: 0.8; }
+    100% { transform: scale(1.32); opacity: 0; }
+  }
+  @keyframes pg-fade-in { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes pg-slide-up {
+    from { transform: translateY(100%); }
+    to   { transform: translateY(0); }
+  }
+</style>
+</head>
+<body>
+  <div class="stage-meta">pulseGroove · responsive prototype · v3</div>
+  <div class="stage">
+    <div id="mount"></div>
+  </div>
+
+  <!-- React + Babel -->
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+  <!-- Frames + Tweaks -->
+  <script type="text/babel" src="src/ios-frame.jsx"></script>
+  <script type="text/babel" src="src/desktop/browser-window.jsx"></script>
+  <script type="text/babel" src="src/tweaks-panel.jsx"></script>
+
+  <!-- Shared primitives -->
+  <script type="text/babel" src="src/primitives.jsx"></script>
+
+  <!-- Mobile screens -->
+  <script type="text/babel" src="src/metronome.jsx"></script>
+  <script type="text/babel" src="src/tuner.jsx"></script>
+
+  <!-- Desktop -->
+  <script type="text/babel" src="src/desktop/shared.jsx"></script>
+  <script type="text/babel" src="src/desktop/variant-dashboard.jsx"></script>
+
+  <!-- Responsive app -->
+  <script type="text/babel" src="src/responsive-app.jsx"></script>
+</body>
+</html>

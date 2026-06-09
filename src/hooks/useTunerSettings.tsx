@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
 import type { Accidental, Notation } from '../lib/notes'
+import type { InstrumentId } from '../lib/instruments'
 
 export type InTuneTolerance = 3 | 5 | 10
 
@@ -8,17 +9,21 @@ export type TunerSettings = {
   accidental: Accidental
   referenceA4: number
   inTuneCents: InTuneTolerance
+  instrument: InstrumentId
 }
 
 export const TOLERANCE_OPTIONS: InTuneTolerance[] = [3, 5, 10]
+export const REFERENCE_A4_PRESETS: number[] = [415, 432, 438, 440, 442, 444]
 export const MIN_REFERENCE_A4 = 400
 export const MAX_REFERENCE_A4 = 480
+const VALID_INSTRUMENTS: InstrumentId[] = ['chromatic', 'guitar', 'bass', 'ukulele', 'violin']
 
 export const DEFAULT_TUNER_SETTINGS: TunerSettings = {
   notation: 'english',
   accidental: 'sharp',
   referenceA4: 440,
   inTuneCents: 5,
+  instrument: 'chromatic',
 }
 
 const STORAGE_KEY = 'tunepulse:tuner-settings'
@@ -33,6 +38,10 @@ function isValidAccidental(value: unknown): value is Accidental {
 
 function isValidTolerance(value: unknown): value is InTuneTolerance {
   return value === 3 || value === 5 || value === 10
+}
+
+function isValidInstrument(value: unknown): value is InstrumentId {
+  return typeof value === 'string' && (VALID_INSTRUMENTS as string[]).includes(value)
 }
 
 function clampReferenceA4(value: number): number {
@@ -61,6 +70,9 @@ function loadSettings(): TunerSettings {
       inTuneCents: isValidTolerance(parsed.inTuneCents)
         ? parsed.inTuneCents
         : DEFAULT_TUNER_SETTINGS.inTuneCents,
+      instrument: isValidInstrument(parsed.instrument)
+        ? parsed.instrument
+        : DEFAULT_TUNER_SETTINGS.instrument,
     }
   } catch {
     return DEFAULT_TUNER_SETTINGS

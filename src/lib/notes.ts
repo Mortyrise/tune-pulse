@@ -39,3 +39,26 @@ export function formatNoteName(
   }
   return (accidental === 'flat' ? FLAT_EN : SHARP_EN)[noteIndex]
 }
+
+export function midiToFrequency(midi: number, referenceA4 = REFERENCE_PITCH): number {
+  return referenceA4 * Math.pow(2, (midi - A4_MIDI) / 12)
+}
+
+export function octaveFromMidi(midi: number): number {
+  return Math.floor(midi / 12) - 1
+}
+
+export type SplitNoteName = {
+  base: string
+  accidental: '♯' | '♭' | null
+}
+
+export function splitNoteName(name: string): SplitNoteName {
+  if (name.includes('#')) {
+    return { base: name.replace('#', ''), accidental: '♯' }
+  }
+  if (name.length > 1 && name.endsWith('b')) {
+    return { base: name.slice(0, -1), accidental: '♭' }
+  }
+  return { base: name, accidental: null }
+}
