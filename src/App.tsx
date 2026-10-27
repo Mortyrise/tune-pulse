@@ -4,7 +4,7 @@ import { MetronomeScreen } from './screens/MetronomeScreen'
 import { SettingsScreen } from './screens/SettingsScreen'
 import { TunerScreen } from './screens/TunerScreen'
 import { useTheme } from './hooks/useTheme'
-import { TunerSettingsProvider } from './hooks/useTunerSettings'
+import { TunerSettingsProvider } from './hooks/TunerSettingsProvider'
 
 function AppShell() {
   useTheme() // initialize theme on mount

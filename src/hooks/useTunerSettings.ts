@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
+import { createContext, useContext } from 'react'
 import type { Accidental, Notation } from '../lib/notes'
 import type { InstrumentId } from '../lib/instruments'
 
@@ -26,7 +26,7 @@ export const DEFAULT_TUNER_SETTINGS: TunerSettings = {
   instrument: 'chromatic',
 }
 
-const STORAGE_KEY = 'tunepulse:tuner-settings'
+export const STORAGE_KEY = 'tunepulse:tuner-settings'
 
 function isValidNotation(value: unknown): value is Notation {
   return value === 'english' || value === 'latin'
@@ -44,11 +44,11 @@ function isValidInstrument(value: unknown): value is InstrumentId {
   return typeof value === 'string' && (VALID_INSTRUMENTS as string[]).includes(value)
 }
 
-function clampReferenceA4(value: number): number {
+export function clampReferenceA4(value: number): number {
   return Math.max(MIN_REFERENCE_A4, Math.min(MAX_REFERENCE_A4, Math.round(value)))
 }
 
-function loadSettings(): TunerSettings {
+export function loadSettings(): TunerSettings {
   if (typeof window === 'undefined') {
     return DEFAULT_TUNER_SETTINGS
   }
@@ -79,48 +79,13 @@ function loadSettings(): TunerSettings {
   }
 }
 
-type TunerSettingsContextValue = {
+export type TunerSettingsContextValue = {
   settings: TunerSettings
   updateSettings: (partial: Partial<TunerSettings>) => void
   resetSettings: () => void
 }
 
-const TunerSettingsContext = createContext<TunerSettingsContextValue | null>(null)
-
-export function TunerSettingsProvider({ children }: { children: ReactNode }) {
-  const [settings, setSettings] = useState<TunerSettings>(loadSettings)
-
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return
-    }
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(settings))
-    } catch {
-      // storage full or disabled — silently ignore.
-    }
-  }, [settings])
-
-  const updateSettings = useCallback((partial: Partial<TunerSettings>) => {
-    setSettings((current) => {
-      const next: TunerSettings = { ...current, ...partial }
-      if (partial.referenceA4 !== undefined) {
-        next.referenceA4 = clampReferenceA4(partial.referenceA4)
-      }
-      return next
-    })
-  }, [])
-
-  const resetSettings = useCallback(() => {
-    setSettings(DEFAULT_TUNER_SETTINGS)
-  }, [])
-
-  return (
-    <TunerSettingsContext.Provider value={{ settings, updateSettings, resetSettings }}>
-      {children}
-    </TunerSettingsContext.Provider>
-  )
-}
+export const TunerSettingsContext = createContext<TunerSettingsContextValue | null>(null)
 
 export function useTunerSettings(): TunerSettingsContextValue {
   const ctx = useContext(TunerSettingsContext)
