@@ -10,7 +10,8 @@ Part of the **BandPulse** ecosystem.
 - Tailwind CSS v4
 - React Router
 - `vite-plugin-pwa` (offline-first, installable)
-- Web Audio API (`AudioWorklet` for low-latency pitch detection — coming in Phase 2)
+- `lucide-react` icons
+- Web Audio API (`AudioWorklet` running McLeod pitch detection; lookahead scheduler for the metronome)
 
 ## Scripts
 
@@ -21,28 +22,27 @@ npm run preview  # preview production build
 npm run lint     # eslint
 ```
 
-## Roadmap
+## Status
 
-- **Phase 1** — Scaffolding, layout, theme system, audio engine stubs ✅
-- **Phase 2** — MPM pitch detection in AudioWorklet, metronome lookahead scheduler
-- **Phase 3** — Tuner UI (visualization with Claude Design)
-- **Phase 4** — Metronome UI (BPM, time signatures, subdivisions, tap tempo, patterns, count-in, haptic)
-- **Phase 5** — PWA polish, icons, install testing
+Mobile app is feature-complete with the pulse·groove redesign (`handoff/`). Remaining work — desktop dashboard, PWA icons, pre-launch QA — is tracked in [ROADMAP.md](ROADMAP.md).
 
 ## Architecture
 
 ```
 src/
-├── audio/        # AudioContext, pitch detector, metronome scheduler
+├── audio/        # AudioContext, MPM worklet + pitch detector, metronome scheduler
 ├── components/   # TabBar, ThemeToggle
+│   └── atoms/    # Dial, PulseRings, CentsRing, BeatColumn, HistoryStrip, Chip, BottomSheet…
 ├── screens/      # Tuner, Metronome, Settings
-├── hooks/        # useTheme
-└── lib/          # notes.ts (frequency → note + cents)
+├── hooks/        # useMetronome (+ provider), useTuner, useTunerSettings (+ provider), useTheme…
+└── lib/          # notes, instruments, grooves library, tempo names
 ```
 
 ## Notes
 
-- Chromatic by default (no instrument presets in MVP)
-- Reference A4 = 440 Hz (configurable later)
-- In-tune tolerance: ±5 cents
-- UI in English; note notation toggleable (C-D-E / Do-Re-Mi)
+- Tuner: chromatic by default, plus guitar / bass / ukulele / violin string targets
+- Reference A4 = 440 Hz by default (presets 415–444, 400–480 Hz range)
+- In-tune tolerance: ±5 cents by default (±3 / ±5 / ±10 configurable)
+- UI in English; note notation toggleable (C-D-E / Do-Re-Mi), ♯ or ♭
+- Themes: light / dark / mono
+- Metronome and tuner settings persist in `localStorage`; the metronome keeps playing while you switch tabs

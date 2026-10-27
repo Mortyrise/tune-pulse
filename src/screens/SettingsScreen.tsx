@@ -27,7 +27,7 @@ export function SettingsScreen() {
       <h1 className="text-2xl font-semibold">Settings</h1>
 
       <Section title="Appearance">
-        <Row label="Theme" hint="Light or dark">
+        <Row label="Theme" hint="Light, dark or mono">
           <ThemeToggle />
         </Row>
       </Section>

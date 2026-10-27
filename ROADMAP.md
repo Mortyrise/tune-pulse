@@ -1,126 +1,61 @@
 # TunePulse Roadmap
 
-## Status — May 2026
+## Status — October 2026
 
-Core engine and minimal UI shipped. App is usable end-to-end:
-- Chromatic tuner with MPM pitch detection (AudioWorklet, 4096-sample window).
-- Metronome with sample-accurate Chris Wilson scheduler.
-- PWA installable, offline-first.
+The mobile app is feature-complete and carries the final pulse·groove design (spec in `handoff/README.md`):
+- Chromatic tuner with MPM pitch detection (AudioWorklet), cents ring, hold-to-confirm, 12-note history, reference pitch, tolerance, notation, instrument string targets.
+- Metronome with sample-accurate scheduler: BPM dial, time signatures, per-beat accents and subdivisions, tap tempo, count-in, haptic mode, 12 curated grooves + user-saved patterns.
+- Light / dark / mono themes. Settings and metronome config persist; the metronome keeps playing across tabs.
 
-Visual polish is placeholder by design — final look comes from Claude Design once features are locked.
+What is left: desktop dashboard, real PWA icons, pre-launch QA.
 
 ---
 
 ## ✅ Completed
 
-### Phase 1 — Scaffolding
-Vite + React + TS + Tailwind v4 + PWA, tab bar, theme system, audio engine stubs.
-
-### Phase 2 — Audio engine
-MPM pitch detection (NSDF + key-maximum picking + parabolic interpolation), useTuner hook with permission lifecycle, Chris Wilson metronome scheduler with synthesized clicks, useMetronome hook, functional Tuner & Metronome screens, sticky tuner display, threshold-zone cents meter.
-
----
-
-## 🟡 Next phases — pick one
-
-### Phase 3 — Settings + tuner refinements
-
-**Scope**
-- Settings screen wired to real config (currently it only shows the theme toggle).
-- Toggles: note notation (C-D-E / Do-Re-Mi), accidental preference (♯/♭), reference pitch (A4 = 440 Hz, configurable in 1 Hz steps), in-tune tolerance (±3 / ±5 / ±10¢).
-- Persist all settings to localStorage.
-- Wire settings into TunerScreen (currently hardcoded).
-- Optional: note history (last N detected notes, cleared on stop).
-
-**Why** Settings are configurable in the data model but no UI exists. Small surface, immediate quality-of-life win.
-
-**Effort** S
-**Dependencies** None
+| Phase | Scope |
+|---|---|
+| 1 — Scaffolding | Vite + React + TS + Tailwind v4 + PWA, tab bar, theme system |
+| 2 — Audio engine | MPM pitch detection, metronome lookahead scheduler, useTuner / useMetronome |
+| 3 — Settings | Notation, ♯/♭, A4 reference, in-tune tolerance, persisted |
+| 4a/4b/4c — Metronome | Tap tempo, count-in, time signatures, subdivisions, accents, saved patterns, haptic |
+| 5 — Design (mobile) | pulse·groove redesign: tokens, fonts, atoms, Tuner + Metronome screens, grooves library |
+| 6 — Instruments (partial) | Guitar / bass / ukulele / violin standard tunings with closest-string highlight |
+| Block 1 — Stabilise | Metronome provider above the router + persisted config, lint clean, docs refreshed |
 
 ---
 
-### Phase 4 — Metronome feature complete
+## 🟡 Remaining
 
-Split into sub-iterations that can land independently.
+### Block 2 — Installable PWA · S
+- Generate `pwa-192x192.png`, `pwa-512x512.png` (+ maskable) and `apple-touch-icon.png` — referenced in `vite.config.ts` but missing from `public/`.
+- Update manifest `theme_color` / `background_color` to the redesign palette.
+- Verify install on iOS Safari and Android Chrome.
 
-**4a — Tap tempo + count-in**
-- Tap tempo button: derive BPM from time between taps (sliding window of 4 taps).
-- Count-in: 1, 2, 3, 4 visual + audible click before the pattern starts (configurable: off / 1 bar / 2 bars).
+### Block 3 — Desktop dashboard (≥900px) · M
+Per `handoff/README.md` → "Desktop layout":
+- `useMediaQuery('(min-width: 900px)')` switching to a `DashboardScreen`.
+- 3-column grid: grooves library with search · metronome + tuner panes (atoms at 460px) · session rail with stats.
+- Global keyboard shortcuts (Space, +/−, T, M, U, ⌘K), ignored inside inputs.
 
-**4b — Time signature + per-beat subdivisions**
-- Numerator picker (1–12) and denominator picker (2 / 4 / 8 / 16).
-- Per-beat subdivision editor: tap each beat dot to cycle quarter → eighths → triplets → sixteenths.
-- Accent toggles per beat (long-press to set/unset accent).
+### Block 4 — Polish · S
+- Replace `window.prompt` in "Save current" with a bottom-sheet form.
+- Accessibility pass: ARIA on Dial / CentsRing / BeatColumn, keyboard control of the dial, focus order.
 
-**4c — Saved patterns + haptic**
-- "Save pattern" dialog, list of saved patterns in Settings or a new Patterns screen.
-- Haptic mode: `navigator.vibrate` instead of audio click (silent practice on phone).
-
-**Why** Turns a basic metronome into something usable for serious practice (odd time signatures, complex subdivisions, setlist-style patterns).
-
-**Effort** M total (S each sub-iteration)
-**Dependencies** None — audio engine already supports it all.
-
----
-
-### Phase 5 — Design system + brand
-
-**Scope**
-- Brief Claude Design with the locked feature set.
-- Brand identity: logo, color palette, typography that fits the BandPulse ecosystem.
-- Final visual design for Tuner and Metronome screens (with input from "minigame-like" exploration JM mentioned for the chromatic tuner).
-- Real PWA icons (192 / 512 + maskable), Apple splash screens.
-- Microinteractions (button press feedback, beat-aligned UI pulse on metronome, etc.).
-- Onboarding (first-launch tooltip overlay or 2-screen intro).
-
-**Why** Currently UI is functional but minimal placeholder. To feel like a real product.
-
-**Effort** M/L
-**Dependencies** Phases 3 & 4 should be feature-complete first, so the design covers everything.
-
----
-
-### Phase 6 — Instrument modes (post-MVP)
-
-**Scope**
-- Mode picker: Chromatic (default), Guitar (standard / drop D / half-step), Bass (4 / 5 string), Ukulele, Violin.
-- String-by-string indicator: highlight the expected pitch for the closest string, show whether you're sharp/flat relative to it.
-- Per-instrument visualization (e.g., headstock-style view for guitar).
-
-**Why** Differentiator from generic chromatic tuners; this was JM's "Fase 2 features" from the original spec.
-
-**Effort** L
-**Dependencies** Phase 3 settings infrastructure; Phase 5 design ideally.
-
----
-
-### Phase 7 — Production-ready / pre-launch
-
-**Scope**
-- Accessibility audit: keyboard navigation, screen reader labels, focus order.
-- Lighthouse perf optimization (bundle splitting if needed).
+### Block 5 — Quality & launch · M
+- Vitest for pure logic (`lib/notes`, `lib/tempo`, config loading, MPM on synthetic sine waves).
+- Playwright smoke test: metronome start/stop, tuner permission flow with mocked `getUserMedia`.
 - Cross-device testing: iOS Safari, Android Chrome, desktop browsers.
-- E2E smoke test (Playwright) for tuner permission flow + metronome start/stop.
-- Optional: Sentry or similar for production error logging.
-- SEO / Open Graph tags for sharing.
+- Open Graph / SEO tags; deploy to Vercel.
+- Optional: production error logging (Sentry or similar).
 
-**Effort** M
-**Dependencies** Everything else done.
-
----
-
-## Suggested order
-
-1. **Phase 4a** next — tap tempo + count-in. Highest user value per unit of work; tap tempo especially is something musicians use every session.
-2. **Phase 3** — Settings UI. Quick QoL.
-3. **Phase 4b**, then **4c**.
-4. **Phase 5** — design pass once features are locked.
-5. **Phase 6** (optional post-MVP).
-6. **Phase 7** before public launch.
+### Post-MVP
+- Alternate tunings: drop D, half-step down, 5-string bass.
+- First-launch onboarding.
 
 ---
 
 ## Backlog / known issues
 
 - Investigate the "+0.6¢ in orange" report (could not reproduce from code inspection; revisit with screenshot if it recurs).
-- Replace placeholder `favicon.svg` with the real brand icon when design is ready.
+- Replace placeholder `favicon.svg` with the real brand icon.
