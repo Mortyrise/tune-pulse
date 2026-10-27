@@ -10,7 +10,7 @@ export type PitchDetectorHandle = {
   stop: () => void
 }
 
-let workletLoaded: WeakSet<AudioContext> = new WeakSet()
+const workletLoaded: WeakSet<AudioContext> = new WeakSet()
 
 export async function startPitchDetection(
   audioContext: AudioContext,

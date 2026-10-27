@@ -1,4 +1,3 @@
-/* eslint-disable */
 // McLeod Pitch Method (NSDF + key-maximum picking + parabolic interpolation).
 // Runs in AudioWorklet global scope: `sampleRate` and `AudioWorkletProcessor`
 // are provided. No imports allowed here.

@@ -76,28 +76,26 @@ function centsColorVar(cents: number, inTuneCents: number, nearCents: number): s
 
 function useStickySample(sample: PitchSample | null): PitchSample | null {
   const [display, setDisplay] = useState<PitchSample | null>(null)
-  const timerRef = useRef<number | null>(null)
+  const [lastSample, setLastSample] = useState(sample)
 
-  useEffect(() => {
+  // Adopt each new valid sample during render; silence keeps the last one visible.
+  if (sample !== lastSample) {
+    setLastSample(sample)
     if (sample && sample.frequency > 0) {
       setDisplay(sample)
-      if (timerRef.current !== null) {
-        window.clearTimeout(timerRef.current)
-      }
-      timerRef.current = window.setTimeout(() => {
-        setDisplay(null)
-        timerRef.current = null
-      }, STICKY_HOLD_MS)
     }
-  }, [sample])
+  }
 
+  // Each new displayed sample restarts the hold timer via the effect cleanup.
   useEffect(() => {
-    return () => {
-      if (timerRef.current !== null) {
-        window.clearTimeout(timerRef.current)
-      }
+    if (!display) {
+      return
     }
-  }, [])
+    const id = window.setTimeout(() => setDisplay(null), STICKY_HOLD_MS)
+    return () => {
+      window.clearTimeout(id)
+    }
+  }, [display])
 
   return display
 }
@@ -134,8 +132,6 @@ export function TunerScreen() {
   const [sheet, setSheet] = useState<SheetKind>(null)
   const [history, setHistory] = useState<HistorySample[]>([])
   const [holdMs, setHoldMs] = useState(0)
-  const [confirmed, setConfirmed] = useState(false)
-  const holdStartRef = useRef<number | null>(null)
   const historyLastAtRef = useRef(0)
   const historyLastMidiRef = useRef<number | null>(null)
 
@@ -166,46 +162,33 @@ export function TunerScreen() {
     setHistory((prev) => [...prev.slice(-(HISTORY_MAX - 1)), { cents: detected.cents }])
   }, [state.sample, state.status, settings.referenceA4])
 
-  useEffect(() => {
-    if (state.status === 'idle') {
-      setHistory([])
-      historyLastMidiRef.current = null
-      historyLastAtRef.current = 0
-      setConfirmed(false)
-      setHoldMs(0)
-      holdStartRef.current = null
-    }
-  }, [state.status])
+  const handleStop = () => {
+    stop()
+    setHistory([])
+    historyLastMidiRef.current = null
+    historyLastAtRef.current = 0
+  }
 
   const isInTune = active && note !== null && Math.abs(note.cents) <= inTuneCents
 
   useEffect(() => {
     if (!isInTune) {
-      holdStartRef.current = null
-      setHoldMs(0)
-      setConfirmed(false)
       return
     }
-    if (holdStartRef.current === null) {
-      holdStartRef.current = Date.now()
-    }
+    const startedAt = Date.now()
     const id = window.setInterval(() => {
-      if (holdStartRef.current === null) {
-        return
-      }
-      const elapsed = Date.now() - holdStartRef.current
-      setHoldMs(elapsed)
-      if (elapsed >= CONFIRM_HOLD_MS) {
-        setConfirmed(true)
-      }
+      setHoldMs(Date.now() - startedAt)
     }, 80)
     return () => {
       window.clearInterval(id)
+      setHoldMs(0)
     }
   }, [isInTune])
 
+  const confirmed = isInTune && holdMs >= CONFIRM_HOLD_MS
+
   if (state.status === 'error' && state.error) {
-    return <ErrorView error={state.error} onRetry={() => void start()} onIdle={stop} />
+    return <ErrorView error={state.error} onRetry={() => void start()} onIdle={handleStop} />
   }
 
   if (state.status === 'idle') {
@@ -380,7 +363,7 @@ export function TunerScreen() {
         </div>
         <button
           type="button"
-          onClick={stop}
+          onClick={handleStop}
           aria-label="Stop tuner"
           className="flex h-12 w-12 items-center justify-center rounded-[14px]"
           style={{
