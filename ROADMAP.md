@@ -27,10 +27,11 @@ What is left: desktop dashboard, real PWA icons, pre-launch QA.
 
 ## 🟡 Remaining
 
-### Block 2 — Installable PWA · S
-- Generate `pwa-192x192.png`, `pwa-512x512.png` (+ maskable) and `apple-touch-icon.png` — referenced in `vite.config.ts` but missing from `public/`.
-- Update manifest `theme_color` / `background_color` to the redesign palette.
-- Verify install on iOS Safari and Android Chrome.
+### Block 2 — Installable PWA · S (icons ✅, device check pending)
+- ✅ Icons generated from `public/favicon.svg` via `npm run generate-pwa-assets` (`pwa-assets.config.ts`): 64/192/512, maskable 512, apple-touch 180, `favicon.ico`.
+- ✅ Manifest `theme_color` / `background_color` set to the redesign light background.
+- ⏳ Verify install on iOS Safari and Android Chrome.
+- When the final logo exists: replace `public/favicon.svg` and rerun the script (update `ICON_BACKGROUND` too).
 
 ### Block 3 — Desktop dashboard (≥900px) · M
 Per `handoff/README.md` → "Desktop layout":
@@ -58,4 +59,4 @@ Per `handoff/README.md` → "Desktop layout":
 ## Backlog / known issues
 
 - Investigate the "+0.6¢ in orange" report (could not reproduce from code inspection; revisit with screenshot if it recurs).
-- Replace placeholder `favicon.svg` with the real brand icon.
+- Replace placeholder `favicon.svg` (green, pre-redesign palette) with the real brand icon, then regenerate PWA assets.

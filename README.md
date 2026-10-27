@@ -20,6 +20,7 @@ npm run dev      # start dev server
 npm run build    # production build
 npm run preview  # preview production build
 npm run lint     # eslint
+npm run generate-pwa-assets  # regenerate PWA icons from public/favicon.svg
 ```
 
 ## Status
