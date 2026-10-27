@@ -4,6 +4,7 @@ import { MetronomeScreen } from './screens/MetronomeScreen'
 import { SettingsScreen } from './screens/SettingsScreen'
 import { TunerScreen } from './screens/TunerScreen'
 import { useTheme } from './hooks/useTheme'
+import { MetronomeProvider } from './hooks/MetronomeProvider'
 import { TunerSettingsProvider } from './hooks/TunerSettingsProvider'
 
 function AppShell() {
@@ -31,7 +32,9 @@ export default function App() {
   return (
     <BrowserRouter>
       <TunerSettingsProvider>
-        <AppShell />
+        <MetronomeProvider>
+          <AppShell />
+        </MetronomeProvider>
       </TunerSettingsProvider>
     </BrowserRouter>
   )

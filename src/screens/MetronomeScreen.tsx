@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import {
   Bookmark,
@@ -16,7 +16,8 @@ import { BottomSheet } from '../components/atoms/BottomSheet'
 import { Chip } from '../components/atoms/Chip'
 import { Dial } from '../components/atoms/Dial'
 import { PulseRings } from '../components/atoms/PulseRings'
-import { MAX_BPM, MIN_BPM, useMetronome } from '../hooks/useMetronome'
+import { useMetronomeContext } from '../hooks/metronomeContext'
+import { MAX_BPM, MIN_BPM } from '../hooks/useMetronome'
 import { useSavedPatterns, type SavedPattern } from '../hooks/useSavedPatterns'
 import { useTapTempo } from '../hooks/useTapTempo'
 import { GROOVES_LIBRARY, type Groove } from '../lib/grooves'
@@ -70,6 +71,7 @@ export function MetronomeScreen() {
   const {
     config,
     isRunning,
+    startedAt,
     activeBeat,
     toggle,
     setBpm,
@@ -80,30 +82,24 @@ export function MetronomeScreen() {
     setSubdivision,
     setHapticMode,
     applyConfig,
-  } = useMetronome()
+  } = useMetronomeContext()
   const { tap } = useTapTempo({ onBpm: setBpm })
   const { patterns: savedPatterns, save, remove } = useSavedPatterns()
 
   const [sheet, setSheet] = useState<SheetKind>(null)
-  const [elapsedMs, setElapsedMs] = useState(0)
-  const startedAtRef = useRef<number | null>(null)
+  const [now, setNow] = useState(() => Date.now())
 
   useEffect(() => {
-    if (!isRunning) {
-      setElapsedMs(0)
-      startedAtRef.current = null
+    if (startedAt === null) {
       return
     }
-    startedAtRef.current = Date.now()
-    const id = window.setInterval(() => {
-      if (startedAtRef.current !== null) {
-        setElapsedMs(Date.now() - startedAtRef.current)
-      }
-    }, 250)
+    const id = window.setInterval(() => setNow(Date.now()), 250)
     return () => {
       window.clearInterval(id)
     }
-  }, [isRunning])
+  }, [startedAt])
+
+  const elapsedMs = startedAt === null ? 0 : Math.max(0, now - startedAt)
 
   const inCountIn = activeBeat?.phase === 'count-in'
   const currentBeat = activeBeat?.beat ?? 0
