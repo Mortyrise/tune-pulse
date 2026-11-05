@@ -1,102 +1,258 @@
-import { Pressable, StyleSheet, Switch, Text, View } from 'react-native'
-import type { Subdivision } from '../audio/metronome'
-import { MAX_NUMERATOR, MIN_NUMERATOR, useMetronome } from '../hooks/useMetronome'
+// Metronome screen (pulse·groove): handoff "Metronome screen" + "Saved Grooves", web
+// src/screens/MetronomeScreen.tsx. State lives in MetronomeProvider (keeps playing across
+// tabs); `active` (tab focused) only gates beat-rate UI updates.
+import { useEffect, useState } from 'react'
+import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { ScrollView } from 'react-native-gesture-handler'
+import { router } from 'expo-router'
+import { nextSubdivision } from '../audio/metronome'
+import { BrandMark } from '../components/BrandMark'
+import { Icon } from '../components/Icon'
+import { BeatColumn } from '../components/atoms/BeatColumn'
+import { BottomSheet } from '../components/atoms/BottomSheet'
+import { Chip } from '../components/atoms/Chip'
+import { Dial } from '../components/atoms/Dial'
+import { PulseRings } from '../components/atoms/PulseRings'
+import { grooveToConfig, type Groove } from '../core/grooves'
+import { getTempoCharacter } from '../core/tempo'
+import { MAX_BPM, MIN_BPM, useMetronome } from '../hooks/useMetronome'
+import { useSavedPatterns, type SavedPattern } from '../hooks/useSavedPatterns'
+import { useTapTempo } from '../hooks/useTapTempo'
+import { GroovesSheetContent } from '../metronome-ui/GroovesSheet'
+import { PlayButton } from '../metronome-ui/PlayButton'
+import { SectionLabel } from '../metronome-ui/SectionLabel'
+import { SessionStrip } from '../metronome-ui/SessionStrip'
+import { SignatureSheetContent } from '../metronome-ui/SignatureSheet'
+import { NOTE_LABEL_BY_DENOM, brandPulseMs, countInLabel, displayedBar, nextCountIn } from '../metronome-ui/format'
+import { useTheme } from '../theme'
 
-const BPM_STEPS = [-10, -1, 1, 10]
-const SUBDIVISIONS: Subdivision[] = [1, 2, 3, 4]
-const NUMERATORS = Array.from({ length: MAX_NUMERATOR - MIN_NUMERATOR + 1 }, (_, i) => MIN_NUMERATOR + i)
+type SheetKind = 'signature' | 'grooves' | null
 
-/** Keeps running when the tab is hidden (`active` only gates UI beat polling). */
+const DIAL_SIZE = 260
+const RINGS_SIZE = 244
+const ELAPSED_TICK_MS = 250
+
+/** Wall clock refreshed every 250 ms while `enabled` (session strip timer). */
+function useNow(enabled: boolean): number {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    if (!enabled) return
+    const id = setInterval(() => setNow(Date.now()), ELAPSED_TICK_MS)
+    return () => clearInterval(id)
+  }, [enabled])
+  return now
+}
+
 export default function MetronomeScreen({ active = true }: { active?: boolean }) {
-  const m = useMetronome({ uiActive: active })
-  const { config, activeBeat, debug } = m
-  const subdivision = config.beats.subdivisions[0] ?? 1
+  const { colors, fonts } = useTheme()
+  const {
+    config,
+    isRunning,
+    startedAt,
+    runCountInBars,
+    activeBeat,
+    error,
+    toggle,
+    setBpm,
+    setCountInBars,
+    setNumerator,
+    setDenominator,
+    toggleAccent,
+    setSubdivision,
+    setHapticMode,
+    applyConfig,
+  } = useMetronome({ live: active })
+  const { tap } = useTapTempo({ onBpm: setBpm })
+  const { patterns, save, remove } = useSavedPatterns()
+  const [sheet, setSheet] = useState<SheetKind>(null)
+  const closeSheet = () => setSheet(null)
+
+  const now = useNow(active && startedAt !== null)
+  const elapsedMs = startedAt === null ? 0 : Math.max(0, now - startedAt)
+
+  const inCountIn = activeBeat?.phase === 'count-in'
+  const currentBeat = activeBeat?.beat ?? 0
+  const currentSub = activeBeat?.subdivision ?? 0
+  const tempo = getTempoCharacter(config.bpm)
+
+  const applyGroove = (groove: Groove) => {
+    applyConfig(grooveToConfig(groove, config))
+    closeSheet()
+  }
+  const applySavedPattern = (pattern: SavedPattern) => {
+    applyConfig(pattern.config)
+    closeSheet()
+  }
+
+  const mono = fonts.mono.regular
 
   return (
-    <View style={styles.root}>
-      <Text style={styles.bpm}>{config.bpm} BPM</Text>
-      <View style={styles.row}>
-        {BPM_STEPS.map((d) => (
-          <Pressable key={d} style={styles.chip} onPress={() => m.setBpm(config.bpm + d)}>
-            <Text>{d > 0 ? `+${d}` : d}</Text>
-          </Pressable>
-        ))}
+    <View style={[styles.root, { backgroundColor: colors.bg }]}>
+      <ScrollView contentContainerStyle={styles.content}>
+        <View style={styles.topbar}>
+          <BrandMark pulseMs={brandPulseMs(config.bpm, isRunning)} />
+          <View style={styles.topRight}>
+            <SectionLabel>Metronome</SectionLabel>
+            <Pressable
+              onPress={() => router.push('/settings')}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel="Open settings"
+            >
+              <Icon name="settings" size={14} strokeWidth={1.6} color={colors.muted} />
+            </Pressable>
+          </View>
+        </View>
+
+        <View style={styles.tempoRow}>
+          <Text style={[styles.tempoName, { color: colors.fg, fontFamily: fonts.display.italic }]}>{tempo.name}</Text>
+          <Text style={[styles.tempoMeaning, { color: colors.muted, fontFamily: mono }]}>· {tempo.meaning}</Text>
+        </View>
+
+        <View style={styles.hero}>
+          <PulseRings
+            tickId={activeBeat ? activeBeat.time : null}
+            isRunning={isRunning}
+            isAccent={activeBeat?.isAccent ?? false}
+            size={RINGS_SIZE}
+          />
+          <Dial value={config.bpm} min={MIN_BPM} max={MAX_BPM} onChange={setBpm} size={DIAL_SIZE} isRunning={isRunning}>
+            <Text style={[styles.bpm, { color: colors.fg, fontFamily: fonts.display.light }]}>{config.bpm}</Text>
+            <View style={styles.caption}>
+              <Text style={[styles.captionText, { color: colors.muted, fontFamily: mono }]}>BPM</Text>
+              <Text style={[styles.captionText, styles.captionDot, { color: colors.muted, fontFamily: mono }]}>·</Text>
+              <Text style={[styles.captionText, styles.captionDrag, { color: colors.muted, fontFamily: mono }]}>
+                drag
+              </Text>
+            </View>
+            <Pressable
+              onPress={() => setSheet('signature')}
+              style={[styles.signature, { backgroundColor: colors.paper, borderColor: colors.border }]}
+              accessibilityRole="button"
+              accessibilityLabel={`Time signature ${config.numerator}/${config.denominator}`}
+            >
+              <Text style={[styles.signatureText, { color: colors.fg, fontFamily: mono }]}>
+                {config.numerator}/{config.denominator}
+              </Text>
+              <Text style={[styles.signatureNote, { color: colors.muted }]}>
+                {NOTE_LABEL_BY_DENOM[config.denominator]}
+              </Text>
+            </Pressable>
+          </Dial>
+        </View>
+
+        <View style={[styles.card, { backgroundColor: colors.paper, borderColor: colors.border }]}>
+          <View style={styles.cardHeader}>
+            <SectionLabel>Bar pattern</SectionLabel>
+            <Text style={[styles.cardHint, { color: colors.muted, fontFamily: mono }]}>tap · cycle clicks</Text>
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.beats}>
+            {Array.from({ length: config.numerator }, (_, i) => {
+              const subdivision = config.beats.subdivisions[i] ?? 1
+              return (
+                <BeatColumn
+                  key={i}
+                  beat={i + 1}
+                  isAccent={config.beats.accents.includes(i + 1)}
+                  subdivision={subdivision}
+                  currentBeat={currentBeat}
+                  currentSub={currentSub}
+                  isRunning={isRunning}
+                  inCountIn={inCountIn}
+                  onToggleAccent={() => toggleAccent(i + 1)}
+                  onCycleSubdivision={() => setSubdivision(i, nextSubdivision(subdivision))}
+                />
+              )
+            })}
+          </ScrollView>
+        </View>
+
+        <SessionStrip
+          bar={displayedBar(activeBeat, runCountInBars, isRunning)}
+          elapsedMs={elapsedMs}
+          isRunning={isRunning}
+          inCountIn={inCountIn}
+        />
+
+        <View style={styles.chips}>
+          <Chip onPress={tap} accessibilityLabel="Tap tempo">
+            <Icon name="hand" size={12} strokeWidth={1.8} />
+            Tap tempo
+          </Chip>
+          <Chip active={config.countInBars > 0} onPress={() => setCountInBars(nextCountIn(config.countInBars))}>
+            {`Count-in · ${countInLabel(config.countInBars)}`}
+          </Chip>
+          <Chip active={config.hapticMode} onPress={() => setHapticMode(!config.hapticMode)}>
+            <Icon name={config.hapticMode ? 'vibrate' : 'volume2'} size={11} strokeWidth={1.8} />
+            {config.hapticMode ? 'Haptic' : 'Audio'}
+          </Chip>
+          <Chip onPress={() => setSheet('grooves')}>
+            <Icon name="bookmark" size={11} strokeWidth={1.8} />
+            Grooves
+          </Chip>
+        </View>
+
+        {error ? <Text style={[styles.error, { color: colors.bad, fontFamily: mono }]}>{error}</Text> : null}
+      </ScrollView>
+
+      <View style={styles.footer}>
+        <PlayButton isRunning={isRunning} onPress={toggle} />
       </View>
 
-      <Text style={styles.label}>Beats per bar</Text>
-      <View style={styles.row}>
-        {NUMERATORS.map((n) => (
-          <Pressable
-            key={n}
-            style={[styles.chip, config.numerator === n && styles.chipOn]}
-            onPress={() => m.setNumerator(n)}
-          >
-            <Text style={config.numerator === n ? styles.chipTextOn : undefined}>{n}</Text>
-          </Pressable>
-        ))}
-      </View>
+      <BottomSheet open={sheet === 'signature'} onClose={closeSheet} title="Time signature">
+        <SignatureSheetContent
+          numerator={config.numerator}
+          denominator={config.denominator}
+          onNumeratorChange={setNumerator}
+          onDenominatorChange={setDenominator}
+        />
+      </BottomSheet>
 
-      <Text style={styles.label}>Subdivision</Text>
-      <View style={styles.row}>
-        {SUBDIVISIONS.map((s) => (
-          <Pressable
-            key={s}
-            style={[styles.chip, subdivision === s && styles.chipOn]}
-            onPress={() => m.setSubdivision(s)}
-          >
-            <Text style={subdivision === s ? styles.chipTextOn : undefined}>{s}</Text>
-          </Pressable>
-        ))}
-      </View>
-
-      <View style={styles.switchRow}>
-        <Text>Accent beat 1</Text>
-        <Switch value={config.beats.accents.includes(1)} onValueChange={m.setAccent} />
-      </View>
-      <View style={styles.switchRow}>
-        <Text>Haptic on downbeat</Text>
-        <Switch value={config.hapticMode} onValueChange={m.setHaptics} />
-      </View>
-
-      <Pressable style={[styles.button, m.isRunning && styles.buttonStop]} onPress={m.toggle}>
-        <Text style={styles.buttonText}>{m.isRunning ? 'Stop' : 'Start'}</Text>
-      </Pressable>
-
-      <View style={styles.row}>
-        {Array.from({ length: config.numerator }, (_, i) => {
-          const on = activeBeat?.beat === i + 1
-          return <View key={i} style={[styles.dot, on && (i === 0 ? styles.dotAccent : styles.dotOn)]} />
-        })}
-      </View>
-      <Text style={styles.sub}>
-        {activeBeat ? `beat ${activeBeat.beat}.${activeBeat.subdivision + 1}` : '-'}
-      </Text>
-
-      {m.error ? <Text style={styles.error}>{m.error}</Text> : null}
-      <Text style={styles.debug}>
-        ctx: {debug.contextState} | {debug.sampleRate} Hz | mode: {debug.mode} | bg:{' '}
-        {debug.background ? 'on' : 'off'}
-      </Text>
+      <BottomSheet open={sheet === 'grooves'} onClose={closeSheet} title="Grooves">
+        <GroovesSheetContent
+          activeConfig={config}
+          onApplyGroove={applyGroove}
+          savedPatterns={patterns}
+          onApplySavedPattern={applySavedPattern}
+          onSave={(name) => save(name, config)}
+          onDeleteSavedPattern={remove}
+        />
+      </BottomSheet>
     </View>
   )
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, padding: 16, gap: 10, alignItems: 'center' },
-  bpm: { fontSize: 40, fontWeight: '700' },
-  label: { marginTop: 6, color: '#555' },
-  row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center' },
-  chip: { paddingVertical: 8, paddingHorizontal: 14, borderWidth: 1, borderColor: '#999', borderRadius: 6 },
-  chipOn: { backgroundColor: '#000', borderColor: '#000' },
-  chipTextOn: { color: '#fff' },
-  switchRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  button: { marginVertical: 8, paddingVertical: 14, paddingHorizontal: 48, backgroundColor: '#1a9e3a', borderRadius: 8 },
-  buttonStop: { backgroundColor: '#d33' },
-  buttonText: { color: '#fff', fontSize: 18, fontWeight: '600' },
-  dot: { width: 22, height: 22, borderRadius: 11, backgroundColor: '#ddd' },
-  dotOn: { backgroundColor: '#333' },
-  dotAccent: { backgroundColor: '#d33' },
-  sub: { color: '#555' },
-  error: { color: '#d33' },
-  debug: { marginTop: 'auto', fontSize: 12, color: '#666', fontFamily: 'monospace' },
+  root: { flex: 1 },
+  content: { paddingHorizontal: 24, paddingTop: 12, paddingBottom: 16, gap: 14 },
+  topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 },
+  topRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  tempoRow: { flexDirection: 'row', alignItems: 'baseline', gap: 10, paddingBottom: 4 },
+  tempoName: { fontSize: 22, letterSpacing: -0.22 },
+  tempoMeaning: { fontSize: 10, letterSpacing: 0.4 },
+  hero: { height: 268, marginTop: 4, marginBottom: 8, alignItems: 'center', justifyContent: 'center' },
+  bpm: { fontSize: 86, lineHeight: 94, letterSpacing: -3.9, fontVariant: ['tabular-nums'] },
+  caption: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
+  captionText: { fontSize: 9.5, letterSpacing: 2.1, textTransform: 'uppercase' },
+  captionDot: { opacity: 0.45 },
+  captionDrag: { letterSpacing: 1.1 },
+  signature: {
+    marginTop: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 99,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  signatureText: { fontSize: 13 },
+  signatureNote: { fontSize: 14 },
+  card: { borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, paddingVertical: 14, paddingHorizontal: 16 },
+  cardHeader: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, marginBottom: 10 },
+  cardHint: { fontSize: 9.5, letterSpacing: 0.6 },
+  beats: { flexDirection: 'row', alignItems: 'flex-end', gap: 4 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  error: { fontSize: 10.5 },
+  footer: { paddingHorizontal: 24, paddingTop: 8, paddingBottom: 12 },
 })

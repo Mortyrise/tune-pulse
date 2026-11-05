@@ -186,11 +186,9 @@ export function centsTone(cents: number, inTuneCents: number): Tone {
   return 'bad'
 }
 
-/** Handoff light-theme tokens. */
-export const TONE_COLORS: Record<Tone, string> = {
-  good: '#4A7C3A',
-  warn: '#D49A2B',
-  bad: '#B83A2A',
+/** Theme colour for a tone (`colors` = `useTheme().colors`). */
+export function toneColor(tone: Tone, colors: Record<Tone, string>): string {
+  return colors[tone]
 }
 
 export function formatCents(cents: number): string {

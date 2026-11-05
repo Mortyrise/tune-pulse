@@ -2,10 +2,11 @@
   "expo": {
     "name": "TunePulse",
     "slug": "tunepulse",
+    "scheme": "tunepulse",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.bandpulse.tunepulse"
@@ -49,6 +50,17 @@
             "mediaPlayback"
           ],
           "androidFSStopWithTask": true
+        }
+      ],
+      "expo-font",
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#EEE7D6",
+          "dark": {
+            "backgroundColor": "#0F0E0C"
+          }
         }
       ]
     ],

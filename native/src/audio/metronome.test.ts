@@ -1,13 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import {
   ACCENT_CLICK,
+  COUNT_IN_CLICK,
   DEFAULT_METRONOME,
   DOWNBEAT_CLICK,
   SUBDIV_CLICK,
   buildBarLayout,
+  handoverBarOffset,
   planHandover,
   renderBar,
   stepAt,
+  stepToEvent,
   type MetronomeConfig,
   type Subdivision,
 } from './metronomeLayout'
@@ -125,5 +128,86 @@ describe('planHandover', () => {
     const h = planHandover(old, 5, 4.9, buildBarLayout(cfg(90, 4), SR))
     expect(h.when).toBe(5)
     expect(h.offset).toBe(0)
+  })
+})
+
+describe('count-in layout', () => {
+  it('has one count-in click per beat and the pattern bar length', () => {
+    const c: MetronomeConfig = {
+      ...cfg(100, 3, 4),
+      beats: { accents: [1, 2], subdivisions: [4, 4, 4] },
+    }
+    const ci = buildBarLayout(c, SR, { countIn: true })
+    const pattern = buildBarLayout(c, SR)
+    expect(ci.lengthSamples).toBe(pattern.lengthSamples)
+    expect(ci.steps).toHaveLength(3)
+    expect(ci.steps.every((s) => s.style === COUNT_IN_CLICK && !s.isAccent && s.subdivision === 0)).toBe(true)
+    expect(ci.steps.map((s) => s.sample)).toEqual(pattern.beatTimes.map((t) => Math.round(t * SR)))
+  })
+})
+
+describe('per-beat subdivisions and meters', () => {
+  it('lays out mixed subdivisions per beat', () => {
+    const c: MetronomeConfig = { ...cfg(60, 4), beats: { accents: [1, 3], subdivisions: [1, 2, 3, 4] } }
+    const l = buildBarLayout(c, SR)
+    expect(l.steps).toHaveLength(10)
+    const beat3 = l.steps.filter((s) => s.beat === 3)
+    expect(beat3.map((s) => s.sample)).toEqual([96000, 112000, 128000])
+    expect(beat3[0].style).toBe(ACCENT_CLICK)
+    expect(beat3[1].style).toBe(SUBDIV_CLICK)
+    const beat2 = l.steps.filter((s) => s.beat === 2)
+    expect(beat2.map((s) => s.sample)).toEqual([48000, 72000])
+    expect(beat2[0].style).toBe(DOWNBEAT_CLICK)
+    expect(l.steps.filter((s) => s.beat === 4).map((s) => s.sample)).toEqual([144000, 156000, 168000, 180000])
+  })
+
+  it('supports numerator 1 and 12', () => {
+    const one = buildBarLayout(cfg(120, 1), SR)
+    expect(one.beatTimes).toEqual([0])
+    expect(one.lengthSamples).toBe(24000)
+    const twelve = buildBarLayout(cfg(220, 12), SR)
+    expect(twelve.beatTimes).toHaveLength(12)
+    expect(twelve.steps).toHaveLength(12)
+    const h = planHandover(twelve, 0, 0.3, one)
+    expect(h.offset).toBe(0) // beat index >= 1 → new bar
+  })
+
+  it('ignores the denominator (BPM counts denominator notes)', () => {
+    const a = buildBarLayout({ ...cfg(130, 7), denominator: 4 }, SR)
+    const b = buildBarLayout({ ...cfg(130, 7), denominator: 8 }, SR)
+    expect(b).toEqual(a)
+  })
+})
+
+describe('stepToEvent', () => {
+  it('carries phase and run-wide bar number', () => {
+    const l = buildBarLayout(cfg(120, 4), SR)
+    const e = stepToEvent(l, 10, 1, 2, 'count-in', 3)
+    expect(e.phase).toBe('count-in')
+    expect(e.barIndex).toBe(5)
+    expect(e.time).toBeCloseTo(10 + 2 * 2 + 0.5)
+    expect(stepToEvent(l, 0, 0, 0).phase).toBe('pattern')
+  })
+})
+
+describe('handoverBarOffset', () => {
+  const old = buildBarLayout(cfg(120, 4), SR) // bar 2 s
+
+  it('continues the current bar when entering mid-bar', () => {
+    const h = planHandover(old, 0, 3.2, buildBarLayout(cfg(60, 4), SR)) // bar 1, beat index 3
+    expect(handoverBarOffset(old, 0, 2, h)).toBe(3)
+  })
+
+  it('counts the next bar when the new meter restarts at beat 1 mid-bar', () => {
+    const h = planHandover(old, 0, 3.2, buildBarLayout(cfg(120, 2), SR))
+    expect(h.offset).toBe(0)
+    expect(handoverBarOffset(old, 0, 2, h)).toBe(4)
+  })
+
+  it('keeps the number at a bar boundary (incl. pending loop after count-in)', () => {
+    const roll = planHandover(old, 0, 3.7, buildBarLayout(cfg(90, 4), SR))
+    expect(handoverBarOffset(old, 0, 0, roll)).toBe(2)
+    const pending = planHandover(old, 5, 4.9, buildBarLayout(cfg(90, 4), SR))
+    expect(handoverBarOffset(old, 5, 2, pending)).toBe(2)
   })
 })

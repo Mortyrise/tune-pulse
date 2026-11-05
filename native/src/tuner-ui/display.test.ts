@@ -19,7 +19,7 @@ const hz = (midi: number, cents = 0, a4 = 440) => a4 * 2 ** ((midi - 69 + cents 
 
 function feed(
   v: TunerView,
-  frames: Array<number | null>,
+  frames: (number | null)[],
   t0: number,
   dt = 43,
   cfg = CFG,

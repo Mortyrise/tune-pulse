@@ -2,12 +2,14 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { AppState } from 'react-native'
 import type { PitchSample } from '../core/mpm'
 import {
+  DEFAULT_TUNER_PRESET,
   startTuner,
   TunerError,
   type TunerErrorKind,
   type TunerHandle,
   type TunerInfo,
   type TunerPreset,
+  type TunerStats,
 } from '../audio/tuner'
 import {
   initialView,
@@ -21,39 +23,14 @@ export type TunerStatus = 'idle' | 'starting' | 'running' | 'error'
 
 export type TunerHookError = { kind: TunerErrorKind; message: string }
 
-/**
- * Fields task 06 is adding to TunerInfo / TunerStats (see 06-tuner-detection.md
- * "Requests to other tasks"). Read optionally so this compiles before and
- * after 06 lands.
- */
-export type TunerLastAnalysis = {
-  rawFrequency: number
-  clarity: number
-  rms: number
-  rmsUnfiltered: number
-  reason: string
-}
-type TunerInfoExtra = { lowpassHz?: number; rmsThreshold?: number }
-type TunerStatsExtra = {
-  voiced?: number
-  rejGate?: number
-  rejClarity?: number
-  rejNoPeak?: number
-  last?: TunerLastAnalysis | null
-}
-
-export type TunerDebug = TunerInfo & TunerInfoExtra & {
-  voiced?: number
-  rejGate?: number
-  rejClarity?: number
-  rejNoPeak?: number
-  last?: TunerLastAnalysis | null
-  analysesPerSec: number
-  msPerAnalysis: number
-  lagMs: number
-  errors: number
-  lastError: string | null
-}
+export type TunerDebug = TunerInfo &
+  Pick<TunerStats, 'voiced' | 'rejGate' | 'rejClarity' | 'rejNoPeak' | 'last'> & {
+    analysesPerSec: number
+    msPerAnalysis: number
+    lagMs: number
+    errors: number
+    lastError: string | null
+  }
 
 const UI_INTERVAL_MS = 33 // ~30 fps
 const STATS_INTERVAL_MS = 1000
@@ -101,7 +78,7 @@ export function useTuner(viewConfig: ViewConfig = DEFAULT_VIEW_CONFIG) {
     resetView()
   }, [resetView])
 
-  const start = useCallback(async (preset: TunerPreset = 'full') => {
+  const start = useCallback(async (preset: TunerPreset = DEFAULT_TUNER_PRESET) => {
     // Any previous run (or in-flight start) is superseded.
     const token = ++tokenRef.current
     handleRef.current?.stop()
@@ -174,17 +151,17 @@ export function useTuner(viewConfig: ViewConfig = DEFAULT_VIEW_CONFIG) {
       const h = handleRef.current
       if (!h) return
       const t = Date.now()
-      const { analyses, analysisMsTotal, lagMs, errors, lastError } = h.stats
-      const extra = h.stats as typeof h.stats & TunerStatsExtra
+      const { analyses, analysisMsTotal, lagMs, errors, lastError, voiced, rejGate, rejClarity, rejNoPeak, last } =
+        h.stats
       const dA = analyses - prevAnalyses
       const dt = (t - prevT) / 1000
       setDebug({
-        ...(h.info as TunerInfo & TunerInfoExtra),
-        voiced: extra.voiced,
-        rejGate: extra.rejGate,
-        rejClarity: extra.rejClarity,
-        rejNoPeak: extra.rejNoPeak,
-        last: extra.last ? { ...extra.last } : (extra.last ?? undefined),
+        ...h.info,
+        voiced,
+        rejGate,
+        rejClarity,
+        rejNoPeak,
+        last: last ? { ...last } : null,
         analysesPerSec: dt > 0 ? dA / dt : 0,
         msPerAnalysis: dA > 0 ? (analysisMsTotal - prevMs) / dA : 0,
         lagMs,
@@ -214,11 +191,15 @@ export function useTuner(viewConfig: ViewConfig = DEFAULT_VIEW_CONFIG) {
     return () => sub.remove()
   }, [busy, stop])
 
+  // Unmount: invalidate any in-flight start and release the recorder.
+  // (Refs copied so the cleanup doesn't read `.current` off the effect scope.)
   useEffect(() => {
+    const tokens = tokenRef
+    const handle = handleRef
     return () => {
-      tokenRef.current++
-      handleRef.current?.stop()
-      handleRef.current = null
+      tokens.current++
+      handle.current?.stop()
+      handle.current = null
     }
   }, [])
 

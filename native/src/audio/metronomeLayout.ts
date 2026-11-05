@@ -17,9 +17,9 @@ export type MetronomeConfig = {
   numerator: number
   denominator: Denominator
   beats: BeatConfig
-  /** Not supported in the native PoC (ignored). */
+  /** Bars of count-in clicks before the pattern loop (snapshot at start). */
   countInBars: CountInBars
-  /** Native PoC: haptic tick on the downbeat while foregrounded (clicks keep playing). */
+  /** Silent clicks + haptics per step while foregrounded (silent in the background). */
   hapticMode: boolean
 }
 
@@ -49,6 +49,7 @@ export type ClickStyle = { frequency: number; gain: number; duration: number }
 export const ACCENT_CLICK: ClickStyle = { frequency: 1500, gain: 0.9, duration: 0.05 }
 export const DOWNBEAT_CLICK: ClickStyle = { frequency: 1000, gain: 0.6, duration: 0.04 }
 export const SUBDIV_CLICK: ClickStyle = { frequency: 800, gain: 0.3, duration: 0.03 }
+export const COUNT_IN_CLICK: ClickStyle = { frequency: 1200, gain: 0.7, duration: 0.04 }
 
 const ATTACK_S = 0.001
 const SILENCE_GAIN = 0.0001
@@ -81,8 +82,18 @@ export type BarLayout = {
   steps: BarStep[]
 }
 
-/** One bar of clicks laid out on whole-sample positions. No count-in. */
-export function buildBarLayout(config: MetronomeConfig, sampleRate: number): BarLayout {
+/**
+ * One bar of clicks laid out on whole-sample positions.
+ * `countIn`: one COUNT_IN_CLICK per beat (no subdivisions, no accents), same bar length.
+ * The denominator is notation only (BPM counts denominator notes, as on the web): it does
+ * not affect the layout.
+ */
+export function buildBarLayout(
+  config: MetronomeConfig,
+  sampleRate: number,
+  opts: { countIn?: boolean } = {},
+): BarLayout {
+  const countIn = opts.countIn === true
   const numerator = Math.max(1, Math.round(config.numerator))
   const beatSamples = (60 / config.bpm) * sampleRate
   const lengthSamples = Math.round(numerator * beatSamples)
@@ -92,11 +103,11 @@ export function buildBarLayout(config: MetronomeConfig, sampleRate: number): Bar
   for (let b = 0; b < numerator; b++) {
     const beatStart = b * beatSamples
     beatTimes.push(Math.round(beatStart) / sampleRate)
-    const subdivCount = config.beats.subdivisions[b] ?? 1
+    const subdivCount = countIn ? 1 : (config.beats.subdivisions[b] ?? 1)
     for (let s = 0; s < subdivCount; s++) {
       const sample = Math.round(beatStart + (s * beatSamples) / subdivCount)
       const isDownbeat = s === 0
-      const isAccent = isDownbeat && config.beats.accents.includes(b + 1)
+      const isAccent = !countIn && isDownbeat && config.beats.accents.includes(b + 1)
       steps.push({
         sample,
         time: sample / sampleRate,
@@ -104,7 +115,7 @@ export function buildBarLayout(config: MetronomeConfig, sampleRate: number): Bar
         subdivision: s,
         isAccent,
         isDownbeat,
-        style: isAccent ? ACCENT_CLICK : isDownbeat ? DOWNBEAT_CLICK : SUBDIV_CLICK,
+        style: countIn ? COUNT_IN_CLICK : isAccent ? ACCENT_CLICK : isDownbeat ? DOWNBEAT_CLICK : SUBDIV_CLICK,
       })
     }
   }
@@ -207,7 +218,35 @@ export function planHandover(
   return { when, offset, anchor: when - offset }
 }
 
-export function stepToEvent(layout: BarLayout, anchor: number, index: number, barIndex: number): BeatEvent {
+/**
+ * Bar number (run-wide, count-in bars included) of the new segment's first bar after a
+ * handover from `base` (bar 0 of base = `baseBarOffset`). Keeps BAR counting across config
+ * changes: entering mid-bar continues the current bar; entering a new bar at beat 1 when the
+ * old bar was not finished starts the next number.
+ */
+export function handoverBarOffset(
+  baseLayout: BarLayout,
+  baseAnchor: number,
+  baseBarOffset: number,
+  plan: Handover,
+): number {
+  const EPS = 1e-9
+  const elapsed = Math.max(0, plan.when - baseAnchor)
+  const bar = Math.floor(elapsed / baseLayout.duration + EPS)
+  const posInBar = elapsed - bar * baseLayout.duration
+  const atBarStart = Math.abs(posInBar) < 1e-7
+  if (plan.offset > EPS || atBarStart) return baseBarOffset + bar
+  return baseBarOffset + bar + 1
+}
+
+export function stepToEvent(
+  layout: BarLayout,
+  anchor: number,
+  index: number,
+  barIndex: number,
+  phase: BeatPhase = 'pattern',
+  barOffset = 0,
+): BeatEvent {
   const s = layout.steps[index]
   return {
     time: anchor + barIndex * layout.duration + s.time,
@@ -215,7 +254,7 @@ export function stepToEvent(layout: BarLayout, anchor: number, index: number, ba
     subdivision: s.subdivision,
     isAccent: s.isAccent,
     isDownbeat: s.isDownbeat,
-    phase: 'pattern',
-    barIndex,
+    phase,
+    barIndex: barOffset + barIndex,
   }
 }

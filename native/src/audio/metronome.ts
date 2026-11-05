@@ -2,19 +2,25 @@
 // Once started, the clicks come from the native audio thread, so JS timer
 // throttling (background / screen locked) cannot drop clicks.
 // Config changes swap in a new source at the next beat boundary (sample-exact).
+// Count-in: a second looped source (count-in bar) scheduled at start and stopped exactly
+// where the pattern loop starts, so it needs no JS after start() either.
+// Haptic mode mutes the output gain; the loop keeps running (timing/handover unchanged).
 import type { AudioBufferSourceNode, AudioContext, GainNode } from 'react-native-audio-api'
 import {
   buildBarLayout,
+  handoverBarOffset,
   planHandover,
   renderBar,
   stepAt,
   stepToEvent,
   type BarLayout,
   type BeatEvent,
+  type BeatPhase,
   type MetronomeConfig,
 } from './metronomeLayout'
 
 export * from './metronomeLayout'
+export * from './metronomeConfig'
 
 export const ENGINE_MODE = 'loop-buffer'
 
@@ -24,10 +30,22 @@ const HANDOVER_LEAD_S = 0.03
 /** Collapse bursts of config changes (e.g. repeated +1 taps) into one rebuild. */
 const CONFIG_DEBOUNCE_MS = 120
 const UI_POLL_MS = 16
+/** Delay + ramp for mute changes (avoids a pop). */
+const MUTE_LEAD_S = 0.01
+const MUTE_RAMP_S = 0.005
 
-type Segment = { layout: BarLayout; anchor: number; source: AudioBufferSourceNode; startsAt: number }
+type Segment = {
+  layout: BarLayout
+  anchor: number
+  source: AudioBufferSourceNode
+  startsAt: number
+  phase: BeatPhase
+  /** Run-wide bar number of this segment's bar 0 (count-in bars included, like the web). */
+  barOffset: number
+}
 
-function layoutKey(c: MetronomeConfig): string {
+/** Fields that change the rendered bar. Denominator, count-in and haptic mode don't. */
+export function layoutKey(c: MetronomeConfig): string {
   return `${c.bpm}|${c.numerator}|${c.beats.subdivisions.join(',')}|${c.beats.accents.join(',')}`
 }
 
@@ -45,6 +63,7 @@ export class MetronomeEngine {
   private pollId: ReturnType<typeof setInterval> | null = null
   private onBeat: ((evt: BeatEvent) => void) | null = null
   private lastStepKey = ''
+  private muted = false
 
   constructor(ctx: AudioContext) {
     this.ctx = ctx
@@ -61,12 +80,46 @@ export class MetronomeEngine {
     if (this.segments.length > 0) return
     this.config = config
     this.appliedKey = layoutKey(config)
-    const layout = buildBarLayout(config, this.ctx.sampleRate)
+    const sr = this.ctx.sampleRate
+    const t0 = this.ctx.currentTime + START_LEAD_S
+    const segments: Segment[] = []
+    let patternAt = t0
+    const bars = config.countInBars
+    if (bars > 0) {
+      const ciLayout = buildBarLayout(config, sr, { countIn: true })
+      const ciSource = this.createSource(ciLayout)
+      patternAt = t0 + bars * ciLayout.duration
+      ciSource.start(t0)
+      ciSource.stop(patternAt)
+      segments.push({ layout: ciLayout, anchor: t0, source: ciSource, startsAt: t0, phase: 'count-in', barOffset: 0 })
+    }
+    const layout = buildBarLayout(config, sr)
     const source = this.createSource(layout)
-    const when = this.ctx.currentTime + START_LEAD_S
-    source.start(when)
-    this.segments = [{ layout, anchor: when, source, startsAt: when }]
+    source.start(patternAt)
+    segments.push({ layout, anchor: patternAt, source, startsAt: patternAt, phase: 'pattern', barOffset: bars })
+    this.segments = segments
     this.lastStepKey = ''
+  }
+
+  /** Haptic mode: silence the clicks without touching the loop. */
+  setMuted(muted: boolean) {
+    if (muted === this.muted) return
+    this.muted = muted
+    const gain = this.out.gain
+    const target = muted ? 0 : 1
+    if (this.segments.length === 0) {
+      gain.cancelScheduledValues(0)
+      gain.value = target
+      return
+    }
+    const t = this.ctx.currentTime + MUTE_LEAD_S
+    gain.cancelScheduledValues(0)
+    gain.setValueAtTime(muted ? 1 : 0, t)
+    gain.linearRampToValueAtTime(target, t + MUTE_RAMP_S)
+  }
+
+  get isMuted(): boolean {
+    return this.muted
   }
 
   stop() {
@@ -155,6 +208,7 @@ export class MetronomeEngine {
     const layout = buildBarLayout(config, this.ctx.sampleRate)
     const plan = planHandover(base.layout, base.anchor, Math.max(now + HANDOVER_LEAD_S, base.startsAt), layout)
 
+    const barOffset = handoverBarOffset(base.layout, base.anchor, base.barOffset, plan)
     const source = this.createSource(layout)
     source.start(plan.when, plan.offset)
     const old = base.source
@@ -169,7 +223,7 @@ export class MetronomeEngine {
 
     // plan.when >= base.startsAt, so a base that has not started yet still plays from its
     // startsAt until plan.when, exactly as the segment list says.
-    this.segments.push({ layout, anchor: plan.anchor, source, startsAt: plan.when })
+    this.segments.push({ layout, anchor: plan.anchor, source, startsAt: plan.when, phase: 'pattern', barOffset })
     this.appliedKey = key
   }
 
@@ -185,6 +239,6 @@ export class MetronomeEngine {
     const stepKey = `${seg.startsAt}|${barIndex}|${index}`
     if (stepKey === this.lastStepKey) return
     this.lastStepKey = stepKey
-    this.onBeat(stepToEvent(seg.layout, seg.anchor, index, barIndex))
+    this.onBeat(stepToEvent(seg.layout, seg.anchor, index, barIndex, seg.phase, seg.barOffset))
   }
 }
