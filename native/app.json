@@ -1,0 +1,62 @@
+{
+  "expo": {
+    "name": "TunePulse",
+    "slug": "tunepulse",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.bandpulse.tunepulse"
+    },
+    "android": {
+      "package": "com.bandpulse.tunepulse",
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+        "android.permission.POST_NOTIFICATIONS"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-dev-client",
+      [
+        "react-native-audio-api",
+        {
+          "iosMicrophonePermission": "TunePulse uses the microphone to detect the pitch of your instrument.",
+          "iosBackgroundMode": true,
+          "androidPermissions": [
+            "android.permission.RECORD_AUDIO",
+            "android.permission.MODIFY_AUDIO_SETTINGS",
+            "android.permission.FOREGROUND_SERVICE",
+            "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+            "android.permission.POST_NOTIFICATIONS"
+          ],
+          "androidForegroundService": true,
+          "androidFSTypes": [
+            "mediaPlayback"
+          ],
+          "androidFSStopWithTask": true
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "c56873ca-0170-4f5d-8786-b2b7c4b2a2be"
+      }
+    },
+    "owner": "joanmarcdomenech"
+  }
+}
