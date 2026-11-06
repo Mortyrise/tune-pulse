@@ -1,0 +1,18 @@
+{
+  // Standalone config for the detector code shared with the web PWA worklet
+  // (src/audio/worklets/mpm-processor.ts at the repo root). Vite resolves the
+  // nearest tsconfig for these files when it bundles the worklet; without this
+  // file it would pick native/tsconfig.json, which extends expo/tsconfig.base —
+  // not installed when only the root (web) dependencies are present (Vercel).
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": false
+  },
+  "include": ["*.ts"]
+}

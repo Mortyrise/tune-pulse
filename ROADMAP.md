@@ -4,7 +4,7 @@
 
 TunePulse ships as two apps (see [README](README.md)):
 - **Native app** (`native/`, Expo SDK 58): the main mobile app from now on. Phase 1 (PoC) and phase 2 (pulse·groove UI port) are done and running on Android. Phase 3 (release readiness) is in progress.
-- **Web PWA** (repo root): mobile feature-complete, deployable as a static site. The plan below covers both apps.
+- **Web PWA** (repo root): mobile feature-complete, deployed on Vercel (auto-deploy from main). The plan below covers both apps.
 
 The web mobile app is feature-complete and carries the final pulse·groove design (spec in `handoff/README.md`):
 - Chromatic tuner with MPM pitch detection (AudioWorklet), cents ring, hold-to-confirm, 12-note history, reference pitch, tolerance, notation, instrument string targets.
