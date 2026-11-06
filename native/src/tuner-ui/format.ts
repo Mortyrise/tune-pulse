@@ -41,5 +41,8 @@ export function errorCopy(kind: TunerErrorKind | string, message: string): Error
       canOpenSettings: true,
     }
   }
+  if (kind === 'interrupted') {
+    return { title: 'Tuner paused', body: message || 'The microphone was interrupted.', canOpenSettings: false }
+  }
   return { title: 'Microphone error', body: message || 'Something went wrong.', canOpenSettings: false }
 }

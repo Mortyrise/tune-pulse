@@ -1,4 +1,5 @@
-import mpmWorkletUrl from './worklets/mpm-processor.js?url'
+// Bundled by Vite (with its native/src/core imports) into a single worklet script.
+import mpmWorkletUrl from './worklets/mpm-processor.ts?worker&url'
 
 export type PitchSample = {
   frequency: number

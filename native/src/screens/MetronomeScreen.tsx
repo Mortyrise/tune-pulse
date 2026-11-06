@@ -52,6 +52,7 @@ export default function MetronomeScreen({ active = true }: { active?: boolean })
     runCountInBars,
     activeBeat,
     error,
+    pausedMessage,
     toggle,
     setBpm,
     setCountInBars,
@@ -192,6 +193,9 @@ export default function MetronomeScreen({ active = true }: { active?: boolean })
           </Chip>
         </View>
 
+        {pausedMessage && !isRunning ? (
+          <Text style={[styles.error, { color: colors.muted, fontFamily: mono }]}>{pausedMessage}</Text>
+        ) : null}
         {error ? <Text style={[styles.error, { color: colors.bad, fontFamily: mono }]}>{error}</Text> : null}
       </ScrollView>
 

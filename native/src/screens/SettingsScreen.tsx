@@ -296,7 +296,7 @@ function A4Control({
 
 type DiagSample = EngineDiagnostics | string | null
 
-/** Snapshot of 11's engine diagnostics; never throws (Settings must not crash on it). */
+/** Snapshot of the metronome engine diagnostics; never throws (Settings must not crash on it). */
 function readEngineDiagnostics(get: (() => EngineDiagnostics) | undefined): DiagSample {
   if (typeof get !== 'function') return null
   try {

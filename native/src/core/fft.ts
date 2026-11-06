@@ -1,3 +1,8 @@
+// SHARED WITH THE WEB PWA: bundled into src/audio/worklets/mpm-processor.ts
+// (AudioWorklet scope). Keep it dependency-free: no react-native, Expo, DOM
+// or Node imports — only other files in this folder. Check: npm run check:worklet
+// at the repo root.
+
 // Minimal radix-2 FFT (no dependencies), Float64 throughout.
 // All tables and scratch buffers are preallocated in the constructors; the
 // transform methods allocate nothing.

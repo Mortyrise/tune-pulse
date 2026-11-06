@@ -1,6 +1,6 @@
 // Tuner screen (pulse·groove). Behaviour: useTuner + reduceView (sticky note,
 // smoothing, hold-to-confirm, history). Settings: useTunerSettings. Visuals:
-// 09's atoms; screen-specific pieces live in src/tuner-ui/.
+// shared atoms (src/components/atoms); screen-specific pieces live in src/tuner-ui/.
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Linking, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native'
 import { ScrollView } from 'react-native-gesture-handler'

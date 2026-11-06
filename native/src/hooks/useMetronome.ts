@@ -7,11 +7,26 @@ import { AppState } from 'react-native'
 import * as Haptics from 'expo-haptics'
 import type { AudioContext } from 'react-native-audio-api'
 import {
+  acquireFocus,
   configureAudioSession,
   getAudioContext,
+  getPrivateOutputIds,
+  releaseFocus,
   startBackgroundPlayback,
   stopBackgroundPlayback,
+  subscribeAudioEvents,
+  subscribeRemoteStop,
+  type RawAudioEvent,
 } from '../audio/session'
+import {
+  DEFAULT_RESUME_POLICY,
+  PAUSED_MESSAGES,
+  isContextStalled,
+  lostPrivateOutput,
+  metronomeReaction,
+  type AudioEvt,
+  type PausedReason,
+} from '../audio/robustness'
 import {
   DEFAULT_METRONOME,
   ENGINE_MODE,
@@ -32,6 +47,9 @@ export { MAX_BPM, MAX_NUMERATOR, MIN_BPM, MIN_NUMERATOR } from '../audio/metrono
 
 export const METRONOME_CONFIG_KEY = 'tunepulse:metronome-config'
 const NOTIFICATION_TITLE = 'TunePulse metronome'
+const FOCUS_OWNER = 'metronome'
+/** Wall interval for the foreground stall check. */
+const STALL_CHECK_MS = 300
 
 /** Read-only snapshot for Settings → Diagnostics (task 12). */
 export type EngineDiagnostics = {
@@ -73,6 +91,8 @@ export function useMetronomeController() {
   const [runCountInBars, setRunCountInBars] = useState<CountInBars>(0)
   const [error, setError] = useState<string | null>(null)
   const [appActive, setAppActive] = useState(AppState.currentState === 'active')
+  /** Why the metronome stopped on its own (interruption, headphones, stall, output error). */
+  const [pausedReason, setPausedReason] = useState<PausedReason | null>(null)
 
   const engineRef = useRef<MetronomeEngine | null>(null)
   const ctxRef = useRef<AudioContext | null>(null)
@@ -81,6 +101,9 @@ export function useMetronomeController() {
   const backgroundRef = useRef(false)
   const errorRef = useRef<string | null>(null)
   const listenersRef = useRef(new Set<BeatListener>())
+  const pausedRef = useRef<{ reason: PausedReason | null; at: number | null }>({ reason: null, at: null })
+  /** Private outputs (headphones / BT / USB) connected while running, for "unplugged" detection. */
+  const privateOutputsRef = useRef<string[]>([])
 
   const reportError = useCallback((msg: string | null) => {
     errorRef.current = msg
@@ -107,6 +130,7 @@ export function useMetronomeController() {
     return () => {
       engineRef.current?.dispose()
       engineRef.current = null
+      releaseFocus(FOCUS_OWNER)
       void stopBackgroundPlayback().catch(() => undefined)
     }
   }, [])
@@ -123,17 +147,37 @@ export function useMetronomeController() {
     }
   }, [])
 
+  const setPaused = useCallback((reason: PausedReason | null) => {
+    pausedRef.current = { reason, at: reason ? Date.now() : null }
+    setPausedReason(reason)
+  }, [])
+
+  /** Tear down a run. `keepFocus` only for the (off by default) auto-resume policy. */
+  const halt = useCallback((keepFocus = false) => {
+    engineRef.current?.stop()
+    engineRef.current?.setUiActive(false)
+    setIsRunning(false)
+    setStartedAt(null)
+    backgroundRef.current = false
+    if (!keepFocus) releaseFocus(FOCUS_OWNER)
+    void stopBackgroundPlayback().catch(() => undefined)
+  }, [])
+
   const start = useCallback(async () => {
     if (busyRef.current || engineRef.current?.running) return
     busyRef.current = true
     reportError(null)
+    setPaused(null)
     try {
       await configureAudioSession('metronome')
       const ctx = getAudioContext()
       ctxRef.current = ctx
-      if (ctx.state !== 'running') await ctx.resume()
+      // Always resume: after an Android output failure (ctx.onerror) the state can still read
+      // 'running' with the driver stopped; resume() restarts it and is a no-op when healthy.
+      await ctx.resume()
       if (!engineRef.current) engineRef.current = new MetronomeEngine(ctx)
       const engine = engineRef.current
+      acquireFocus(FOCUS_OWNER)
       engine.setOnBeat(handleBeat)
       engine.setMuted(configRef.current.hapticMode)
       engine.start(configRef.current)
@@ -141,27 +185,104 @@ export function useMetronomeController() {
       setIsRunning(true)
       setStartedAt(Date.now())
       setRunCountInBars(configRef.current.countInBars)
+      void getPrivateOutputIds().then((ids) => {
+        privateOutputsRef.current = ids
+      })
       try {
         await startBackgroundPlayback(NOTIFICATION_TITLE)
         backgroundRef.current = true
       } catch (e) {
-        reportError(`background: ${errorMessage(e)}`)
+        reportError(`Background playback unavailable: ${errorMessage(e)}`)
       }
     } catch (e) {
-      reportError(errorMessage(e))
+      releaseFocus(FOCUS_OWNER)
+      reportError(`Could not start audio: ${errorMessage(e)}`)
     } finally {
       busyRef.current = false
     }
-  }, [handleBeat, reportError])
+  }, [handleBeat, reportError, setPaused])
 
   const stop = useCallback(() => {
-    engineRef.current?.stop()
-    engineRef.current?.setUiActive(false)
-    setIsRunning(false)
-    setStartedAt(null)
-    backgroundRef.current = false
-    void stopBackgroundPlayback().catch(() => undefined)
-  }, [])
+    setPaused(null)
+    halt()
+  }, [halt, setPaused])
+
+  // Apply the robustness policy to one event (see src/audio/robustness.ts).
+  const dispatchRef = useRef<(evt: AudioEvt) => void>(() => undefined)
+  useEffect(() => {
+    dispatchRef.current = (evt: AudioEvt) => {
+      const running = !!engineRef.current?.running
+      const reaction = metronomeReaction(
+        { running, pausedReason: pausedRef.current.reason, pausedAt: pausedRef.current.at },
+        evt,
+        Date.now(),
+      )
+      if (reaction.action === 'stop') {
+        const keepFocus = reaction.reason === 'interrupted' && DEFAULT_RESUME_POLICY.autoResumeAfterTransient
+        halt(keepFocus)
+        setPaused(reaction.reason)
+      } else if (reaction.action === 'resume') {
+        void start()
+      }
+      // Interruption over without resuming: drop focus kept for auto-resume.
+      if (evt.kind === 'interruptionEnded' && reaction.action !== 'resume' && !engineRef.current?.running) {
+        releaseFocus(FOCUS_OWNER)
+      }
+    }
+  }, [halt, setPaused, start])
+
+  // System events: subscribed while running (and while an interruption could auto-resume).
+  const listening = isRunning || (pausedReason === 'interrupted' && DEFAULT_RESUME_POLICY.autoResumeAfterTransient)
+  useEffect(() => {
+    if (!listening) return
+    const dispatch = (evt: AudioEvt) => dispatchRef.current(evt)
+    const offAudio = subscribeAudioEvents((raw: RawAudioEvent) => {
+      if (raw.type === 'interruption') {
+        dispatch(raw.began ? { kind: 'interruptionBegan' } : { kind: 'interruptionEnded', shouldResume: raw.shouldResume })
+      } else if (raw.type === 'duck') {
+        dispatch({ kind: 'duck' })
+      } else if (raw.reason === 'NewDeviceAvailable') {
+        void getPrivateOutputIds().then((ids) => {
+          privateOutputsRef.current = ids
+        })
+        dispatch({ kind: 'routeAdded' })
+      } else if (raw.reason === 'OldDeviceUnavailable') {
+        const before = privateOutputsRef.current
+        void getPrivateOutputIds().then((ids) => {
+          privateOutputsRef.current = ids
+          dispatch({ kind: 'routeLost', lostPrivate: lostPrivateOutput(before, ids) })
+        })
+      }
+    })
+    const offRemote = subscribeRemoteStop(() => dispatch({ kind: 'remoteStop' }))
+    const ctx = ctxRef.current
+    if (ctx) ctx.onerror = () => dispatch({ kind: 'contextError' })
+    return () => {
+      offAudio()
+      offRemote()
+      if (ctx) ctx.onerror = null
+    }
+  }, [listening])
+
+  // Back in the foreground while "running": make sure the audio clock is really moving, so the
+  // UI never shows running while silent (long background, OS-paused engine, dead stream).
+  // Only on a background -> foreground transition (not right after start, while the stream opens).
+  const wasActiveRef = useRef(appActive)
+  useEffect(() => {
+    const cameBack = appActive && !wasActiveRef.current
+    wasActiveRef.current = appActive
+    if (!cameBack || !engineRef.current?.running) return
+    const ctx = ctxRef.current
+    if (!ctx) return
+    const t0 = ctx.currentTime
+    const wall0 = Date.now()
+    const id = setTimeout(() => {
+      if (isContextStalled(t0, ctx.currentTime, Date.now() - wall0, ctx.state)) {
+        dispatchRef.current({ kind: 'stalled' })
+      }
+    }, STALL_CHECK_MS)
+    return () => clearTimeout(id)
+  }, [appActive])
 
   const toggle = useCallback(() => {
     if (engineRef.current?.running) stop()
@@ -247,6 +368,8 @@ export function useMetronomeController() {
       startedAt,
       runCountInBars,
       error,
+      pausedReason,
+      pausedMessage: pausedReason ? PAUSED_MESSAGES[pausedReason] : null,
       start,
       stop,
       toggle,
@@ -268,6 +391,7 @@ export function useMetronomeController() {
       startedAt,
       runCountInBars,
       error,
+      pausedReason,
       start,
       stop,
       toggle,

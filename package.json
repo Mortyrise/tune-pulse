@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "generate-pwa-assets": "pwa-assets-generator"
+    "generate-pwa-assets": "pwa-assets-generator",
+    "check:worklet": "node --no-warnings scripts/check-worklet-parity.mjs"
   },
   "dependencies": {
     "lucide-react": "^1.14.0",

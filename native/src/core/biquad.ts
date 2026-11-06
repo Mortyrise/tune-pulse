@@ -1,3 +1,8 @@
+// SHARED WITH THE WEB PWA: bundled into src/audio/worklets/mpm-processor.ts
+// (AudioWorklet scope). Keep it dependency-free: no react-native, Expo, DOM
+// or Node imports — only other files in this folder. Check: npm run check:worklet
+// at the repo root.
+
 // Butterworth low-pass as cascaded biquads (bilinear transform, transposed
 // direct form II, Float64 state). Stateful across calls so chunked input gives
 // the same output as one-shot input. Used by MpmDetector to band-limit the mic

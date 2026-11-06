@@ -91,7 +91,8 @@ export type TunerHandle = {
   readonly stats: TunerStats
 }
 
-export type TunerErrorKind = 'denied' | 'other'
+/** 'interrupted': a call / another app / Siri took the audio session (see robustness.ts). */
+export type TunerErrorKind = 'denied' | 'interrupted' | 'other'
 
 export class TunerError extends Error {
   readonly kind: TunerErrorKind

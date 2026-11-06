@@ -1,63 +1,107 @@
-# TunePulse native (PoC)
+# TunePulse native
 
-Expo (SDK 58) dev-build proof of concept for the two things the TunePulse PWA can't do well:
+The TunePulse chromatic tuner and metronome as a native Android/iOS app: Expo SDK 58, expo-router, TypeScript. It is the main mobile app going forward. The web PWA at the repo root shares the pitch detector (`src/core`) with this app.
 
-1. **Tuner**: raw microphone PCM in real time -> McLeod (MPM) pitch detection -> note + cents.
-2. **Metronome**: sample-accurate clicks that keep playing with the screen locked or the app in the background.
+It is native because of two things the PWA can't do well:
 
-The UI is deliberately plain (two tabs). Audio uses [`react-native-audio-api`](https://docs.swmansion.com/react-native-audio-api/), which has native code, so **Expo Go won't work**: you need a development build.
+1. **Tuner**: raw microphone PCM in real time → McLeod (MPM, FFT-accelerated) pitch detection → note and cents.
+2. **Metronome**: sample-accurate clicks that keep playing with the screen locked or the app in the background (an Android foreground service, iOS background audio).
+
+Audio uses [`react-native-audio-api`](https://docs.swmansion.com/react-native-audio-api/), which has native code. **Expo Go won't work**, so you need a development build (dev client).
+
+## Architecture
+
+```
+src/
+├── app/                 # expo-router routes
+│   ├── _layout.tsx      # providers: GestureHandler > Theme > (splash held) TunerSettings > Metronome > Stack
+│   ├── (tabs)/          # custom TabBar: index = Tuner, metronome = Metronome
+│   └── settings.tsx     # Settings, pushed on the stack (native back header)
+├── screens/             # TunerScreen, MetronomeScreen, SettingsScreen
+├── tuner-ui/            # tuner states, target card, in-tune badge, view reducer (smoothing, hold-to-confirm, history), hidden DebugPanel
+├── metronome-ui/        # play button, session strip, signature + grooves sheets, formatting
+├── components/          # Icon, BrandMark, TabBar
+│   └── atoms/           # Dial, PulseRings, CentsRing, BeatColumn, SubdivisionCluster, HistoryStrip, Chip, BottomSheet (react-native-svg + reanimated)
+├── theme/               # light / dark / mono tokens, fonts (Fraunces, Inter, JetBrains Mono), ThemeProvider (system / persisted)
+├── settings/            # tuner settings provider, sanitizing, AsyncStorage (in-memory fallback if the native module is missing)
+├── audio/               # audio session + permissions, tuner (mic → detector), metronome engine (lookahead scheduler, layout, config)
+├── hooks/               # useTuner, useMetronome + MetronomeProvider, useTapTempo, useSavedPatterns
+└── core/                # pure TS, unit-tested: MPM + FFT, biquad lowpass, notes, instruments, grooves, tempo
+```
+
+- The metronome provider sits above the navigator, so playback continues across tabs and Settings.
+- Persisted in AsyncStorage under `tunepulse:*`: theme, tuner settings, tuner detector preset, metronome config, saved grooves.
+- Hidden debug panel: long-press the tuner's top-bar label (detector presets and live stats). Settings → About shows the version.
+- `core/` mirrors the web logic (`../src/lib`, `../src/audio/worklets/mpm-processor.js`) so both apps behave the same.
+
+## Scripts
+
+```bash
+npm test             # vitest run (core, audio layout/config, settings, UI helpers)
+npm run lint         # expo lint
+npm run typecheck    # tsc --noEmit
+npx expo-doctor      # dependency / config checks
+```
 
 ## Prerequisites
 
-- An Expo account: `npx eas-cli@latest login`
-- iOS: an Apple Developer account (paid) to install on a real device.
-- Android: any device with "Install unknown apps" allowed for your browser.
+- An Expo account: `npx eas-cli@latest login`. The project is already linked (`extra.eas.projectId` in `app.json`).
+- Android: a phone with "Install unknown apps" allowed (browser or file manager), or USB debugging for `adb`.
+- iOS: a paid Apple Developer account and `npx eas-cli@latest device:create` to register the device. iOS has not been built yet.
 
-## First-time setup
+## Dev client
 
-```bash
-cd native
-npx eas-cli@latest init                 # links the project, adds extra.eas.projectId to app.json
-npx eas-cli@latest device:create        # iOS only: register your iPhone's UDID (open the link on the phone)
-```
-
-## Build and install the dev client
+Build and install the dev client. You only need to rebuild when native config changes: `app.json` plugins or permissions, or a new native dependency. JS changes only need the dev server.
 
 ```bash
-npx eas-cli@latest build --profile development --platform ios
 npx eas-cli@latest build --profile development --platform android
 ```
 
-When the build finishes, open the build page link (or scan the QR code) on the device and install it.
-iOS 16+: enable **Settings > Privacy & Security > Developer Mode** the first time.
-
-Rebuild only when native config changes (`app.json` plugins/permissions, new native dependency). JS changes just need the dev server.
-
-## Run
+Open the build page on the phone and install the APK. **If the download fails on the phone**, download the APK on the computer and install it over USB:
 
 ```bash
-npx expo start --dev-client             # phone and computer on the same Wi-Fi
-npx expo start --dev-client --tunnel    # if they can't see each other (e.g. WSL)
+adb install -r path/to/build.apk
 ```
 
-Open the TunePulse dev client on the phone and pick the server (or scan the QR code).
+## Run (dev server)
 
-## Other profiles
+The setup that works from WSL2 (phone and PC can't see each other on the LAN) is the tunnel. It uses the `@expo/ngrok` dev dependency:
 
-- `preview`: standalone internal build, Android as an installable `.apk`: `npx eas-cli@latest build --profile preview --platform android`. Use it for background/lock tests without the dev server attached.
-- `production`: store builds (not needed for the PoC).
+```bash
+npx expo start --dev-client --tunnel
+```
+
+Open the TunePulse dev client on the phone and scan the QR code. If scanning doesn't open it, open this link on the phone instead, using the tunnel URL that Expo prints:
+
+```
+exp+tunepulse://expo-development-client/?url=<url-encoded tunnel URL>
+```
+
+On the same Wi-Fi without WSL, `npx expo start --dev-client` (no tunnel) is enough.
+
+## Other builds
+
+- `preview`: a standalone internal Android `.apk` with no dev server. Use it for lock-screen and background tests: `npx eas-cli@latest build --profile preview --platform android`.
+- `production`: Play Store build (remote version, auto-increment). The release process (signing, Play Console internal testing, listing, privacy policy) is in [`docs/store/release-runbook.md`](docs/store/release-runbook.md).
 
 ## Device tests
 
-Follow [`docs/poc/device-test-checklist.md`](docs/poc/device-test-checklist.md) and fill in pass/fail.
+Follow [`docs/device-test-checklist.md`](docs/device-test-checklist.md) and fill in pass/fail per device and build.
+
+## Docs
+
+- `docs/poc/`: phase 1 (native tuner and background metronome proof of concept) task docs and results.
+- `docs/phase2/`: phase 2 (pulse·groove UI port) task docs.
+- `docs/phase3/`: phase 3 (release readiness) task docs.
+- `AGENTS.md`: rules for coding agents (use versioned Expo docs, `npx expo install`).
 
 ## Troubleshooting
 
-- **Tuner shows "microphone denied"**: iOS asks only once. Enable it in Settings > TunePulse > Microphone (the app has a button to open Settings).
-- **No sound on iPhone**: check volume. The session is `playAndRecord` with `defaultToSpeaker`, so the silent switch shouldn't mute it, but low media volume will.
-- **Clicks come from the earpiece / are very quiet**: report it, as it means the audio session wasn't configured before playback started.
-- **Bluetooth headphones**: output goes over A2DP (stereo). The tuner uses the phone's built-in mic, not the headset mic, by design.
-- **Android: metronome stops in the background**: allow notifications for TunePulse (the foreground service needs its notification), and set battery usage to "Unrestricted" on aggressive OEMs (Xiaomi, Samsung, Huawei).
-- **`No development build installed` / app crashes on start in Expo Go**: you opened it in Expo Go; use the dev client.
+- **Tuner shows "microphone denied"**: use the button to open system Settings and allow the microphone (iOS asks only once).
+- **Android: the metronome stops in the background**: allow notifications for TunePulse (the foreground service needs its notification), and set battery usage to "Unrestricted" on aggressive OEMs (Xiaomi, Samsung, Huawei).
+- **Settings don't persist / `[storage] AsyncStorage unavailable` warning**: the installed dev client is older than the JS. Rebuild it.
+- **App crashes on start after pulling new native deps**: same cause. Rebuild the dev client.
+- **`No development build installed` / it opened in Expo Go**: use the TunePulse dev client.
 - **Changes to `app.json` not applied**: they need a new EAS build.
+- **Bluetooth headphones**: output goes over A2DP (stereo). The tuner uses the phone's built-in mic, not the headset mic, by design.
 - Diagnostics: `npx expo-doctor`, `npx expo config --type introspect`.

@@ -39,3 +39,6 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Play Console service account key (eas submit) — never commit
+secrets/

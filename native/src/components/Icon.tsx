@@ -136,8 +136,6 @@ const ICONS = {
 
 export type IconName = keyof typeof ICONS
 
-export const ICON_NAMES = Object.keys(ICONS) as IconName[]
-
 /**
  * Colour icons inherit when no `color` is passed — the web's `currentColor`.
  * Chip provides its text colour; screens may provide their own.

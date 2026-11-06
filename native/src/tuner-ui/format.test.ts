@@ -49,6 +49,10 @@ describe('errorCopy', () => {
     expect(errorCopy('other', 'boom')).toEqual({ title: 'Microphone error', body: 'boom', canOpenSettings: false })
     expect(errorCopy('weird', '').canOpenSettings).toBe(false)
   })
+
+  it('has its own copy for interruptions', () => {
+    expect(errorCopy('interrupted', 'call')).toEqual({ title: 'Tuner paused', body: 'call', canOpenSettings: false })
+  })
 })
 
 describe('toneColor', () => {

@@ -1,3 +1,8 @@
+// SHARED WITH THE WEB PWA: bundled into src/audio/worklets/mpm-processor.ts
+// (AudioWorklet scope). Keep it dependency-free: no react-native, Expo, DOM
+// or Node imports — only other files in this folder. Check: npm run check:worklet
+// at the repo root.
+
 // McLeod Pitch Method (NSDF + key-maximum picking + parabolic interpolation).
 // Pure TS port of the web worklet `src/audio/worklets/mpm-processor.js`.
 // Behaviour is kept line-for-line identical (thresholds, peak picking,

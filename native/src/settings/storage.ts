@@ -37,11 +37,6 @@ export function getStorage(): KeyValueStorage {
   return backend
 }
 
-/** Test hook: replace the backend (pass null to reset to the lazy default). */
-export function setStorageBackend(next: KeyValueStorage | null): void {
-  backend = next
-}
-
 /**
  * Decodes a stored JSON string. Returns undefined when missing, unparsable or
  * rejected by `validate` (the caller then keeps its initial value).

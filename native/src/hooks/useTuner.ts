@@ -18,6 +18,8 @@ import {
   type ViewConfig,
   type ViewEvent,
 } from '../tuner-ui/display'
+import { subscribeAudioEvents, type RawAudioEvent } from '../audio/session'
+import { TUNER_INTERRUPTED_MESSAGE, tunerReaction, type AudioEvt } from '../audio/robustness'
 
 export type TunerStatus = 'idle' | 'starting' | 'running' | 'error'
 
@@ -34,6 +36,10 @@ export type TunerDebug = TunerInfo &
 
 const UI_INTERVAL_MS = 33 // ~30 fps
 const STATS_INTERVAL_MS = 1000
+/** Collapse bursts of route events (BT connect sends several) into one restart. */
+const ROUTE_RESTART_DEBOUNCE_MS = 500
+/** Ignore route events right after a (re)start: opening the mic can itself add/remove devices. */
+const ROUTE_SETTLE_MS = 1500
 const DEFAULT_VIEW_CONFIG: ViewConfig = { referenceA4: 440, inTuneCents: 5 }
 
 /**
@@ -49,6 +55,8 @@ export function useTuner(viewConfig: ViewConfig = DEFAULT_VIEW_CONFIG) {
   const [view, setView] = useState<TunerView>(() => initialView(viewConfig))
 
   const handleRef = useRef<TunerHandle | null>(null)
+  const presetRef = useRef<TunerPreset>(DEFAULT_TUNER_PRESET)
+  const startedAtRef = useRef(0)
   const tokenRef = useRef(0)
   const latestRef = useRef<PitchSample | null>(null)
   const dirtyRef = useRef(false)
@@ -81,6 +89,8 @@ export function useTuner(viewConfig: ViewConfig = DEFAULT_VIEW_CONFIG) {
   const start = useCallback(async (preset: TunerPreset = DEFAULT_TUNER_PRESET) => {
     // Any previous run (or in-flight start) is superseded.
     const token = ++tokenRef.current
+    presetRef.current = preset
+    startedAtRef.current = Date.now()
     handleRef.current?.stop()
     handleRef.current = null
     latestRef.current = null
@@ -177,12 +187,43 @@ export function useTuner(viewConfig: ViewConfig = DEFAULT_VIEW_CONFIG) {
     return () => clearInterval(id)
   }, [status])
 
+  // Interruptions (iOS; Android only while the metronome holds audio focus) stop the tuner
+  // with a readable error, no auto-restart. A headphone / Bluetooth route change restarts it
+  // with the same preset so it picks up the new input and rate (the recorder resamples to the
+  // requested rate, and the detector rebuilds if the delivered rate ever changes).
+  const busy = status === 'running' || status === 'starting'
+  useEffect(() => {
+    if (!busy) return
+    let restartId: ReturnType<typeof setTimeout> | null = null
+    const unsubscribe = subscribeAudioEvents((raw: RawAudioEvent) => {
+      const evt = toTunerEvt(raw)
+      if (!evt) return
+      const reaction = tunerReaction(true, evt)
+      if (reaction === 'stop') {
+        if (restartId !== null) clearTimeout(restartId)
+        stop()
+        setError({ kind: 'interrupted', message: TUNER_INTERRUPTED_MESSAGE })
+        setStatus('error')
+      } else if (reaction === 'restart') {
+        if (Date.now() - startedAtRef.current < ROUTE_SETTLE_MS) return
+        if (restartId !== null) clearTimeout(restartId)
+        restartId = setTimeout(() => {
+          restartId = null
+          void start(presetRef.current)
+        }, ROUTE_RESTART_DEBOUNCE_MS)
+      }
+    })
+    return () => {
+      if (restartId !== null) clearTimeout(restartId)
+      unsubscribe()
+    }
+  }, [busy, start, stop])
+
   // iOS has UIBackgroundModes audio + playAndRecord: a running recorder would
   // keep capturing in background. Stop on 'background' / 'inactive'; no
   // auto-restart (user taps Start again).
   // Note: iOS also reports 'inactive' for Control Center / incoming call
   // banners; stopping there too is intended (conservative).
-  const busy = status === 'running' || status === 'starting'
   useEffect(() => {
     if (!busy) return
     const sub = AppState.addEventListener('change', (next) => {
@@ -204,4 +245,15 @@ export function useTuner(viewConfig: ViewConfig = DEFAULT_VIEW_CONFIG) {
   }, [])
 
   return { status, error, sample, debug, view, start, stop }
+}
+
+/** Only device add/remove matters to the tuner (ConfigurationChange is emitted by the recorder itself). */
+function toTunerEvt(raw: RawAudioEvent): AudioEvt | null {
+  if (raw.type === 'interruption') {
+    return raw.began ? { kind: 'interruptionBegan' } : { kind: 'interruptionEnded', shouldResume: raw.shouldResume }
+  }
+  if (raw.type === 'duck') return { kind: 'duck' }
+  if (raw.reason === 'NewDeviceAvailable') return { kind: 'routeAdded' }
+  if (raw.reason === 'OldDeviceUnavailable') return { kind: 'routeLost', lostPrivate: false }
+  return null
 }
