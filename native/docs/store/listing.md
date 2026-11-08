@@ -1,7 +1,7 @@
 # Play Store listing — TunePulse
 
 Package `com.bandpulse.tunepulse` · Category **Music & Audio** · Free · No ads · No in-app purchases
-Contact email: `{{CONTACT_EMAIL}}` · Privacy policy: `{{PRIVACY_POLICY_URL}}`
+Contact email: `taemedev@gmail.com` · Privacy policy: `https://github.com/Mortyrise/tune-pulse/blob/main/native/docs/store/privacy-policy.md`
 
 The app UI is English only. Add the listing in **English (United States) — en-US** as the default language and **Spanish (Spain) — es-ES** as a translation.
 

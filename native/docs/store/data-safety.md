@@ -19,7 +19,7 @@ Answering "No" skips the data-type sections. That is correct because, per Play's
 ## Other App content forms (same section)
 | Form | Answer |
 |---|---|
-| Privacy policy | `{{PRIVACY_POLICY_URL}}` |
+| Privacy policy | `https://github.com/Mortyrise/tune-pulse/blob/main/native/docs/store/privacy-policy.md` |
 | Ads | No, my app does not contain ads |
 | App access | All functionality is available without special access (no login) |
 | Content rating (IARC) | Category: Utility/Productivity/Communication/Other (a tool app); all content questions **No** (no violence, sexuality, language, drugs, gambling, user interaction, sharing location, purchases) → expected rating: Everyone / PEGI 3 |

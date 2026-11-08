@@ -1,8 +1,7 @@
 # TunePulse — Privacy Policy
 
-_Last updated: {{DATE}}_ · Contact: `{{CONTACT_EMAIL}}`
+_Last updated: 8 November 2026_ · Contact: `taemedev@gmail.com`
 
-> Publish this page at `{{PRIVACY_POLICY_URL}}` (any public static page; see release runbook §7). Play requires a public, non-PDF, non-editable URL.
 
 ## English
 
@@ -20,7 +19,7 @@ TunePulse is a tuner and metronome app. It does not collect, store or share any 
 
 **Changes.** If this policy changes, the updated version will be published at this address with a new date.
 
-**Contact.** Questions: `{{CONTACT_EMAIL}}`.
+**Contact.** Questions: `taemedev@gmail.com`.
 
 ## Español
 
@@ -38,4 +37,4 @@ TunePulse es una app de afinador y metrónomo. No recopila, almacena ni comparte
 
 **Cambios.** Si esta política cambia, la versión actualizada se publicará en esta dirección con una nueva fecha.
 
-**Contacto.** Preguntas: `{{CONTACT_EMAIL}}`.
+**Contacto.** Preguntas: `taemedev@gmail.com`.

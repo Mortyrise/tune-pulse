@@ -1,7 +1,7 @@
 # Release runbook — Google Play (Android)
 
 Follow top to bottom. Commands run from `native/`. EAS CLI = `npx eas-cli@latest` (written `eas` below).
-Placeholders to fill before starting: `{{CONTACT_EMAIL}}`, `{{PRIVACY_POLICY_URL}}` (in `listing.md`, `privacy-policy.md`, `data-safety.md`).
+Placeholders to fill before starting: `taemedev@gmail.com`, `https://github.com/Mortyrise/tune-pulse/blob/main/native/docs/store/privacy-policy.md` (in `listing.md`, `privacy-policy.md`, `data-safety.md`).
 
 Requirements checked Nov 2026: Play needs an **AAB** (no APK) and **targetSdk 36** for new apps/updates (RN 0.88 default = 36 ✔). New **personal** accounts (created after 13 Nov 2023) need a closed test with **≥12 testers opted in for 14 continuous days** before production access.
 
@@ -13,7 +13,7 @@ Play Console → Settings (gear) → Developer account → Account details → *
 ## 1. Prerequisites (once)
 - `eas login` (account `joanmarcdomenech`; project already linked in `app.json`).
 - Play Console account active, developer identity verified.
-- `{{PRIVACY_POLICY_URL}}` live (step 7) before you fill App content.
+- `https://github.com/Mortyrise/tune-pulse/blob/main/native/docs/store/privacy-policy.md` live (step 7) before you fill App content.
 
 ## 2. Regenerate and check assets/config
 ```bash
@@ -46,7 +46,7 @@ Expo can create the first release via `eas submit`, but do the first one by hand
 
 ## 6. Store listing
 Grow users → Store presence → **Main store listing**: copy from `listing.md` (name, short, full description), upload `assets/store/icon-512.png`, `assets/store/feature-graphic.png`, ≥2 phone screenshots. Then *Manage translations* → add **Spanish (Spain)** with the ES texts.
-Store settings: category **Music & Audio**, contact email `{{CONTACT_EMAIL}}`.
+Store settings: category **Music & Audio**, contact email `taemedev@gmail.com`.
 
 ## 7. Privacy policy hosting
 Recommended: a **static page** (no login, not a PDF, not an editable doc). Options: publish `privacy-policy.md` as a page from this Claude session (ask), GitHub Pages, or a `/privacy` page on the PWA's domain. Paste the URL into App content → Privacy policy and into the placeholders.
