@@ -20,10 +20,13 @@ Last updated: 9 Nov 2026. To resume, read this, `listing.md` (texts), `data-safe
 - Default store listing (en-US), **saved as draft**: name, short and full description, icon (`assets/store/icon-512.png`), feature graphic (`assets/store/feature-graphic.png`).
 - Closed testing **Alpha**: 178 countries; testers = Google Group `farsant-testers@googlegroups.com` (shared with Farsant; anyone can join); feedback `taemedev@gmail.com`.
 
+- Alpha release **2 (1.0.0)** (versionCode 2, minSdk 24, targetSdk 36, 15.2 MB download) uploaded with en-US release notes, **saved as draft**. Play App Signing managed by Google. (Uploaded from the browser by serving the 79 MB AAB on 127.0.0.1 and injecting it into the page's file input; the browser tool's direct upload is limited to 10 MB.)
+- Dashboard: 10 of 11 setup tasks done; only the store listing is missing (needs screenshots). The release preview shows 2 errors, both about the listing.
+
 ## Pending, in order
 
-1. **Upload the AAB by hand** (79 MB, too big for the browser tool; the first upload of a new app must be manual anyway): Alpha → Create release → drag `C:\Users\joanm\Downloads\tunepulse-1.0.0.aab` (versionCode 1, 1.0.0) → accept Play App Signing if asked → release notes → Save.
-2. **Foreground service declaration** (appears in App content after the AAB is uploaded): `FOREGROUND_SERVICE_MEDIA_PLAYBACK`, text in `release-runbook.md` §8, plus an **unlisted YouTube video** (~30 s, recorded on the phone with sound: Metronome → Play → home → notification shade → lock/unlock → Stop).
+1. **Phone screenshots** (see 3) so the listing can be saved for real.
+2. **Foreground service declaration** (not shown in App content yet; check App content / Publishing overview after the listing is saved): `FOREGROUND_SERVICE_MEDIA_PLAYBACK`, text in `release-runbook.md` §8, plus an **unlisted YouTube video** (~30 s, recorded on the phone with sound: Metronome → Play → home → notification shade → lock/unlock → Stop).
 3. **Phone screenshots** (min 2, ideally 4–8; list in `listing.md`): take them on the phone over USB (`adb exec-out screencap -p > shot.png`), save in `assets/store/screenshots/`, add to the listing and save it.
 4. **es-ES translation** of the listing (texts in `listing.md`).
 5. **Send the Alpha release for review**: Publishing overview → send changes for review.
